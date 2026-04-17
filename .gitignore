@@ -1,0 +1,33 @@
+# Sensitive files
+.env
+*.key
+*.pem
+
+# Logs
+logs/
+*.log
+
+# Data directories  
+data/
+models/
+
+# Docker volumes
+volumes/
+
+# Backup files
+*.bak
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+tmp/
+temp/
