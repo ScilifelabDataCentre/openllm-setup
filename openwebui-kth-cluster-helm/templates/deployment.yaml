@@ -1,0 +1,99 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.webui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "openwebui-kth-cluster-helm.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: open-webui
+          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
+          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.webui.containerPort }}
+          env:
+            - name: OLLAMA_BASE_URL
+              value: {{ .Values.webui.ollamaBaseUrl | quote }}
+            {{- if .Values.webui.vllm.baseUrl }}
+            - name: OPENAI_API_BASE_URL
+              value: {{ .Values.webui.vllm.baseUrl | quote }}
+            {{- if .Values.webui.vllm.apiKey }}
+            - name: OPENAI_API_KEY
+              value: {{ .Values.webui.vllm.apiKey | quote }}
+            {{- end }}
+            {{- end }}
+            - name: WEBUI_AUTH
+              value: {{ ternary "true" "false" .Values.webui.authEnabled | quote }}
+            - name: HOME
+              value: {{ .Values.webui.home | quote }}
+            - name: WEBUI_SECRET_KEY
+              value: {{ .Values.webui.secretKey | quote }}
+            {{- with .Values.webui.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+            {{- if .Values.tmpVolume.enabled }}
+            - name: tmp
+              mountPath: /tmp
+            {{- end }}
+          resources:
+            {{- toYaml .Values.webui.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.webui.securityContext | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.webui.containerPort }}
+            initialDelaySeconds: {{ .Values.webui.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.readinessProbe.periodSeconds }}
+        {{- if .Values.tailscale.enabled }}
+        - name: ts-sidecar
+          image: "{{ .Values.tailscale.image.repository }}:{{ .Values.tailscale.image.tag }}"
+          imagePullPolicy: {{ .Values.tailscale.image.pullPolicy }}
+          env:
+            - name: TS_KUBE_SECRET
+              value: {{ .Values.rbac.stateSecretName | quote }}
+            - name: TS_USERSPACE
+              value: {{ .Values.tailscale.env.userspace | quote }}
+            - name: TS_DEBUG_FIREWALL_MODE
+              value: {{ .Values.tailscale.env.debugFirewallMode | quote }}
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tailscale.authSecret.name | quote }}
+                  key: {{ .Values.tailscale.authSecret.key | quote }}
+                  optional: {{ .Values.tailscale.authSecret.optional }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+          securityContext:
+            {{- toYaml .Values.tailscale.securityContext | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "openwebui-kth-cluster-helm.pvcName" . }}
+        {{- if .Values.tmpVolume.enabled }}
+        - name: tmp
+          emptyDir: {}
+        {{- end }}

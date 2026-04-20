@@ -1,0 +1,106 @@
+namespace:
+  create: true
+  name: llm-stack
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+
+nameOverride: ""
+fullnameOverride: open-webui
+
+serviceAccount:
+  create: true
+  name: tailscale
+
+rbac:
+  create: true
+  stateSecretName: open-webui-tailscale-state
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+webui:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/open-webui/open-webui
+    tag: main
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  ollamaBaseUrl: "set-to-your-ollama-url"
+  vllm:
+    baseUrl: ""
+    apiKey: ""
+  authEnabled: true
+  home: /tmp
+  secretKey: "replace-with-secure-random-string"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+  readinessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  extraEnv: []
+
+tailscale:
+  enabled: true
+  image:
+    repository: ghcr.io/tailscale/tailscale
+    tag: latest
+    pullPolicy: Always
+  authSecret:
+    name: tailscale-auth
+    key: TS_AUTHKEY
+    optional: true
+    value: ""
+  env:
+    userspace: "false"
+    debugFirewallMode: auto
+  securityContext:
+    privileged: true
+    runAsUser: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  hosts:
+    - host: open-webui.localhost
+      paths:
+        - path: /
+          pathType: Prefix
+
+networkPolicy:
+  enabled: true
+
+tmpVolume:
+  enabled: true
