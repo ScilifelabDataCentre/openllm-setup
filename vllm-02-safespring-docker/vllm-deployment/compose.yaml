@@ -1,0 +1,25 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
+    container_name: ${CONTAINER_NAME}
+    ports:
+      - "${VLLM_PORT}:8000"
+    ipc: host
+    volumes:
+      - ${HF_CACHE_DIR}:/root/.cache/huggingface
+      - ./vllm-config.yaml:/workspace/vllm-config.yaml:ro
+    environment:
+      HF_HOME: /root/.cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+      VLLM_API_KEY: ${VLLM_API_KEY}
+    command: >
+      --config /workspace/vllm-config.yaml
+      --model ${VLLM_MODEL}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
