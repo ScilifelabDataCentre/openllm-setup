@@ -15,6 +15,7 @@ services:
     command: >
       --config /workspace/vllm-config.yaml
       --model ${VLLM_MODEL}
+      --served-model-name ${SERVED_MODEL_NAME}
     deploy:
       resources:
         reservations:

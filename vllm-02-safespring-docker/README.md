@@ -35,7 +35,7 @@ We do a sparse checkout to only fetch the vllm-02-safespring-docker directory.
 
 ```bash
 cd ~
-git clone --filter=blob:none --no-checkout git clone https://github.com/ScilifelabDataCentre/openllm-setup.git
+git clone --filter=blob:none --no-checkout https://github.com/ScilifelabDataCentre/openllm-setup.git
 cd ./openllm-setup
 
 git sparse-checkout init --cone
@@ -52,10 +52,48 @@ cd ./vllm-02-safespring-docker/vllm-deployment
 cp ./.env.template .env
 ```
 
-Edit the vLLM configuration in the file vllm-config.yaml
+In particular,
+- Specify the LLM model to be used using env var VLLM_MODEL.
+- Give the model a client friendly API contract name as SERVED_MODEL_NAME.
+- Set an HF_TOKEN if you intend to pull private or gated models.
+
+Also edit the vLLM configuration in the file vllm-config.yaml
 
 ## Start the vLLM service
 
 ```bash
 docker compose up -d
+```
+
+Verify it is up and running:
+```bash
+docker ps
+docker logs vllm_prod -f
+```
+
+## Test it
+
+After the docker logs shows that model has been downloaded and that the vLLM service is up and running, you can proceed with some basic tests.
+After some startup steps, the logs should show:
+```
+(APIServer pid=1) INFO:     Started server process [1]
+(APIServer pid=1) INFO:     Waiting for application startup.
+(APIServer pid=1) INFO:     Application startup complete.
+```
+
+```bash
+curl http://localhost:8000/v1/models \
+  -H "Authorization: Bearer your-long-random-secret"
+```
+
+Edit the model as needed:
+```bash
+curl -X POST http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer your-long-random-secret" \
+  -d '{
+    "model": "qwen3-0.6b",
+    "messages": [{"role": "user", "content": "Hello"}],
+    "max_tokens": 10
+  }'
 ```
