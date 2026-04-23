@@ -1,9 +1,20 @@
 services:
   vllm:
+    # Deployment/environment settings live in Compose + .env:
+    # - published host port
+    # - mounted host paths
+    # - secrets/tokens
+    # - selected model / served model name
+    #
+    # Application-internal server settings live in vllm-config.yaml:
+    # - host/port inside the container
+    # - runtime tuning
+    # - server behavior
+
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
     container_name: ${CONTAINER_NAME}
     ports:
-      - "${VLLM_PORT}:8000"
+      - "${VLLM_HOST_PORT}:8000"
     ipc: host
     volumes:
       - ${HF_CACHE_DIR}:/root/.cache/huggingface

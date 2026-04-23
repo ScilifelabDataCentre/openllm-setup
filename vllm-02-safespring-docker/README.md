@@ -45,19 +45,39 @@ git checkout main
 
 ## Configuration
 
-Copy the .env.example file as .env and edit as needed.
+Copy the .env.example file as .env and edit.
 
 ```bash
 cd ./vllm-02-safespring-docker/vllm-deployment
-cp ./.env.template .env
+cp ./.env.example .env
 ```
 
-In particular,
-- Specify the LLM model to be used using env var VLLM_MODEL.
-- Give the model a client friendly API contract name as SERVED_MODEL_NAME.
-- Set an HF_TOKEN if you intend to pull private or gated models.
+### Environment variables (.env)
 
-Also edit the vLLM configuration in the file vllm-config.yaml
+This file defines deployment-specific configuration:
+- which model is loaded
+- how the service is exposed
+- authentication and secrets
+- storage paths
+
+Key settings
+- VLLM_IMAGE_TAG: Docker image version for vLLM. Pin this for reproducibility (avoid latest in production).
+- CONTAINER_NAME: Name of the running container (useful for logs and debugging).
+- VLLM_HOST_PORT: Port exposed on the VM.
+- HF_CACHE_DIR: Directory for Hugging Face cache and model storage. Should be large enough for model weights.
+- VLLM_MODEL: Hugging Face model ID used by vLLM to load the model. Example: Qwen/Qwen3-0.6B
+- SERVED_MODEL_NAME: Give the model a client friendly API contract name. Example: "qwen3-0.6b"
+- VLLM_API_KEY: Required for all API requests. Clients must include: Authorization: Bearer <API_KEY>
+- HF_TOKEN (optional): Set if you intend to pull private or gated models.
+
+### vLLM configuration (vllm-config.yaml)
+
+This file defines application-internal behavior of the vLLM server.
+
+Examples:
+- internal host/port
+- runtime tuning
+- batching, memory, performance settings
 
 ## Start the vLLM service
 
