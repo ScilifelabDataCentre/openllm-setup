@@ -79,6 +79,30 @@ Examples:
 - runtime tuning
 - batching, memory, performance settings
 
+## Download an LLM model
+
+Use the Hugging Face CLI to pre-download a model to use.
+
+Make sure models are stored on the persistent data volume:
+
+```bash
+export HF_HOME=/data/vllm_models
+hf download Qwen/Qwen3-0.6B
+du -sh /data/vllm_models
+```
+
+Note: Using hf download stores the model as: models--ORG--NAME
+
+To remove a model, remove it from the /hub directory, for example:
+```bash
+rm -rf /data/vllm_models/hub/models--Qwen--Qwen3.5-9B
+```
+
+Verify that the space has been freed up:
+```bash
+du -sh /data/vllm_models
+```
+
 ## Start the vLLM service
 
 ```bash
@@ -117,3 +141,41 @@ curl -X POST http://localhost:8000/v1/chat/completions \
     "max_tokens": 10
   }'
 ```
+
+## Troubleshooting
+
+### Unauthorized errors
+- Symptom: {"error":"Unauthorized"}
+- Cause : API key is enabled but not provided in request.
+- Fix: Include the API key:
+```bash
+curl http://localhost:8000/v1/models \
+  -H "Authorization: Bearer <VLLM_API_KEY>"
+```
+
+### Model not found / mismatch
+- Symptom: model not found
+- Cause: SERVED_MODEL_NAME does not match request or confusion between VLLM_MODEL vs SERVED_MODEL_NAME
+- Fix: Use SERVED_MODEL_NAME in the request
+
+### Model re-downloads every start
+- Symptom: Model downloads every time container starts
+- Cause: HF cache not persisted
+- Fix: Ensure volume is mounted correctly
+
+### Container fails to start
+- Check logs:
+```bash
+docker compose logs -f
+```
+
+- Common causes:
+    - invalid model name
+    - insufficient GPU memory
+    - missing HF_TOKEN for gated model
+
+### Slow startup
+- Cause:
+    - first-time model download
+    - model initialization
+- Fix: Pre-download model (see instructions above)
