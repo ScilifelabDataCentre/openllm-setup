@@ -93,8 +93,10 @@ ingress:
   annotations:
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
     nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  secretName: open-llm-tls
   hosts:
-    - host: open-webui.localhost
+    - host: open-llm.sciliflab.se
       paths:
         - path: /
           pathType: Prefix
