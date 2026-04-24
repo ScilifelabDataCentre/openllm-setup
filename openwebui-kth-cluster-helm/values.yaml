@@ -96,7 +96,7 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   secretName: open-llm-tls
   hosts:
-    - host: open-llm.sciliflab.se
+    - host: open-llm.scilifelab.se
       paths:
         - path: /
           pathType: Prefix

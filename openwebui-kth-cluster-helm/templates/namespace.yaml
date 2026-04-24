@@ -7,4 +7,8 @@ metadata:
   annotations:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+  {{- with .Values.namespace.labels }}
+    labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 {{- end }}
