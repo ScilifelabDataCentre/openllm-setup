@@ -8,7 +8,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
   {{- end }}
   {{- with .Values.namespace.labels }}
-    labels:
+  labels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
 {{- end }}
