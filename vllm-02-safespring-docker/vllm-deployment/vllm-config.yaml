@@ -1,0 +1,17 @@
+# -----------------------------
+# vLLM application-internal configuration
+# -----------------------------
+# This file controls runtime behavior of the vLLM server INSIDE the container.
+#
+# Keep deployment-specific values out of this file:
+# - no secrets
+# - no host filesystem paths
+# - no host-published port mappings
+#
+# Those belong in Compose/.env instead.
+
+# Bind address inside the container
+host: 0.0.0.0
+
+# Port inside the container (must match container port in compose)
+port: 8000
