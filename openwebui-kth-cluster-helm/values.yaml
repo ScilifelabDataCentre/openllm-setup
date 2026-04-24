@@ -46,11 +46,11 @@ webui:
   secretKey: "replace-with-secure-random-string"
   resources:
     requests:
-      cpu: 500m
-      memory: 512Mi
-    limits:
       cpu: "2"
-      memory: 2Gi
+      memory: 4Gi
+    limits:
+      cpu: "8"
+      memory: 16Gi
   securityContext:
     allowPrivilegeEscalation: false
     capabilities:
