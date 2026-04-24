@@ -1,0 +1,67 @@
+{{- if and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.qdrantServiceName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.qdrantLabels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.qdrantSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openwebui-kth-cluster-helm.qdrantSelectorLabels" . | nindent 8 }}
+    spec:
+      securityContext:
+        {{- toYaml .Values.vectorDatabase.qdrant.podSecurityContext | nindent 8 }}
+      containers:
+        - name: qdrant
+          image: "{{ .Values.vectorDatabase.qdrant.image.repository }}:{{ .Values.vectorDatabase.qdrant.image.tag }}"
+          imagePullPolicy: {{ .Values.vectorDatabase.qdrant.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.vectorDatabase.qdrant.port }}
+            - name: grpc
+              containerPort: {{ .Values.vectorDatabase.qdrant.grpcPort }}
+          env:
+            - name: QDRANT__SERVICE__HTTP_PORT
+              value: {{ .Values.vectorDatabase.qdrant.port | quote }}
+            - name: QDRANT__SERVICE__GRPC_PORT
+              value: {{ .Values.vectorDatabase.qdrant.grpcPort | quote }}
+            {{- if .Values.vectorDatabase.qdrant.auth.enabled }}
+            - name: QDRANT__SERVICE__API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-kth-cluster-helm.qdrantSecretName" . | quote }}
+                  key: {{ include "openwebui-kth-cluster-helm.qdrantSecretKey" . | quote }}
+            {{- end }}
+          {{- if .Values.vectorDatabase.qdrant.persistence.enabled }}
+          volumeMounts:
+            - name: qdrant-storage
+              mountPath: /qdrant/storage
+          {{- end }}
+          resources:
+            {{- toYaml .Values.vectorDatabase.qdrant.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.vectorDatabase.qdrant.securityContext | nindent 12 }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.vectorDatabase.qdrant.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.vectorDatabase.qdrant.readinessProbe.periodSeconds }}
+          livenessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: {{ .Values.vectorDatabase.qdrant.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.vectorDatabase.qdrant.livenessProbe.periodSeconds }}
+      {{- if .Values.vectorDatabase.qdrant.persistence.enabled }}
+      volumes:
+        - name: qdrant-storage
+          persistentVolumeClaim:
+            claimName: {{ include "openwebui-kth-cluster-helm.qdrantPvcName" . }}
+      {{- end }}
+{{- end }}

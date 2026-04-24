@@ -1,0 +1,20 @@
+{{- if and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.qdrantServiceName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.qdrantLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "openwebui-kth-cluster-helm.qdrantSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.vectorDatabase.qdrant.port }}
+      targetPort: http
+    - name: grpc
+      port: {{ .Values.vectorDatabase.qdrant.grpcPort }}
+      targetPort: grpc
+{{- end }}

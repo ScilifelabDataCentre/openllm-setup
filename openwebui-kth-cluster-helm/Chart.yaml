@@ -4,3 +4,8 @@ description: Open WebUI deployment with a Tailscale sidecar and remote Ollama ba
 type: application
 version: 0.1.0
 appVersion: "main"
+dependencies:
+  - name: postgresql
+    version: 18.6.1
+    repository: https://charts.bitnami.com/bitnami
+    condition: postgresql.enabled
