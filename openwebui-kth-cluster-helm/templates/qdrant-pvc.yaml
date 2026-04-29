@@ -1,0 +1,15 @@
+{{- if and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled .Values.vectorDatabase.qdrant.persistence.enabled (not .Values.vectorDatabase.qdrant.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.qdrantPvcName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.qdrantLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.vectorDatabase.qdrant.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.vectorDatabase.qdrant.persistence.size }}
+{{- end }}

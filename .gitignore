@@ -2,6 +2,7 @@
 .env
 *.key
 *.pem
+*values-local.yaml
 
 # Logs
 logs/

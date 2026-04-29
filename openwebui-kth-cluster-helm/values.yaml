@@ -1,0 +1,239 @@
+namespace:
+  create: true
+  name: llm-stack
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+
+nameOverride: ""
+fullnameOverride: open-webui
+
+serviceAccount:
+  create: true
+  name: tailscale
+
+rbac:
+  create: true
+  stateSecretName: open-webui-tailscale-state
+
+persistence:
+  enabled: true
+  existingClaim: ""
+  accessModes:
+    - ReadWriteOnce
+  size: 5Gi
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+webui:
+  replicaCount: 1
+  image:
+    repository: ghcr.io/open-webui/open-webui
+    tag: main
+    pullPolicy: IfNotPresent
+  containerPort: 8080
+  uvicornWorkers: 1
+  ollamaBaseUrl: "set-to-your-ollama-url"
+  vllm:
+    baseUrl: ""
+    apiKey: ""
+  authEnabled: true
+  home: /tmp
+  secretKey: "replace-with-secure-random-string"
+  corsAllowOrigin: "https://open-llm.scilifelab.se,https://openllm.scilifelab.se"
+  userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
+  enableRealtimeChatSave: false
+  enableBaseModelsCache: true
+  enableQueriesCache: true
+  modelsCacheTtl: "300"
+  threadPoolSize: ""
+  chatResponseStreamDeltaChunkSize: ""
+  resources:
+    requests:
+      cpu: "2"
+      memory: 4Gi
+    limits:
+      cpu: "8"
+      memory: 16Gi
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    readOnlyRootFilesystem: false
+  readinessProbe:
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  extraEnv: []
+
+database:
+  # Overrides the bundled PostgreSQL dependency when set.
+  url: ""
+  waitForBundledPostgresql: true
+  enableMigrations: true
+  enableSessionSharing: true
+  poolSize: "15"
+  poolMaxOverflow: "20"
+  poolTimeout: "30"
+  poolRecycle: "3600"
+  sqlite:
+    enableWal: false
+    busyTimeout: ""
+
+redis:
+  url: ""
+  socketConnectTimeout: "5"
+  socketKeepalive: true
+
+vectorDatabase:
+  type: "qdrant"
+  qdrant:
+    enabled: true
+    # See https://docs.openwebui.com/reference/env-configuration/#qdrant
+    uri: ""
+    scheme: "http"
+    serviceName: ""
+    namespace: ""
+    port: "6333"
+    onDisk: false
+    preferGrpc: false
+    grpcPort: "6334"
+    timeout: "5"
+    hnswM: "16"
+    enableMultitenancyMode: true
+    collectionPrefix: "open-webui"
+    auth:
+      enabled: false
+      existingSecret: ""
+      secretName: ""
+      secretKey: "api-key"
+      value: ""
+    image:
+      repository: qdrant/qdrant
+      tag: v1.17.1-unprivileged
+      pullPolicy: IfNotPresent
+    persistence:
+      enabled: true
+      existingClaim: ""
+      accessModes:
+        - ReadWriteOnce
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+    podSecurityContext:
+      fsGroup: 1000
+    securityContext:
+      runAsNonRoot: true
+      runAsUser: 1000
+      runAsGroup: 1000
+      allowPrivilegeEscalation: false
+      capabilities:
+        drop:
+          - ALL
+    readinessProbe:
+      initialDelaySeconds: 5
+      periodSeconds: 10
+    livenessProbe:
+      initialDelaySeconds: 15
+      periodSeconds: 20
+
+postgresql:
+  enabled: true
+  fullnameOverride: open-webui-postgresql
+  architecture: standalone
+  image:
+    registry: registry-1.docker.io
+    repository: bitnami/postgresql
+    tag: latest
+    digest: ""
+    pullPolicy: IfNotPresent
+    pullSecrets: []
+  auth:
+    username: openwebui
+    # Keep false for remote/ArgoCD deployments after PostgreSQL has been initialized.
+    # Changing the Kubernetes Secret alone does not rotate the password stored in
+    # the PostgreSQL data volume.
+    createSecret: false
+    password: ""
+    database: openwebui
+    postgresPassword: ""
+    # Secret consumed by both Bitnami PostgreSQL and Open WebUI.
+    # With createSecret=false, create and rotate this secret outside the chart.
+    # Set createSecret=true only for first-time bootstrap before the PostgreSQL
+    # data volume is initialized.
+    existingSecret: "open-webui-postgresql"
+    secretKeys:
+      userPasswordKey: password
+      adminPasswordKey: postgres-password
+  primary:
+    service:
+      ports:
+        postgresql: 5432
+    persistence:
+      enabled: true
+      size: 20Gi
+    resources:
+      requests:
+        cpu: "250m"
+        memory: 512Mi
+      limits:
+        cpu: "2"
+        memory: 2Gi
+
+tailscale:
+  enabled: true
+  image:
+    repository: ghcr.io/tailscale/tailscale
+    tag: latest
+    pullPolicy: Always
+  authSecret:
+    name: tailscale-auth
+    key: TS_AUTHKEY
+    optional: true
+    value: ""
+  env:
+    userspace: "false"
+    debugFirewallMode: auto
+  securityContext:
+    privileged: true
+    runAsUser: 0
+    runAsGroup: 0
+    runAsNonRoot: false
+
+service:
+  type: ClusterIP
+  port: 8080
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  secretName: open-llm-tls
+  hosts:
+    - host: open-llm.scilifelab.se
+      paths:
+        - path: /
+          pathType: Prefix
+
+networkPolicy:
+  enabled: true
+
+tmpVolume:
+  enabled: true
+
+staticVolume:
+  enabled: true

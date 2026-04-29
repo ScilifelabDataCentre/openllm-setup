@@ -18,6 +18,14 @@ Deployment folder names follow the below template names: {what deployed}-{option
     /vllm-02-safespring-docker          This contains docker compose files for the vLLM deployment on SafeSpring 02 VM.
 ```
 
+## Live deployments
+
+| Environment | ArgoCD app name | URL |
+|---|---|---|
+| Dev | `open-llm-dev` | https://openllm.scilifelab.se/ |
+
+The `openwebui-kth-cluster-helm` chart is managed via ArgoCD on the KTH cluster.
+
 ## Branch strategy
 
 In this repository we merge to main from short-lived feature branches.

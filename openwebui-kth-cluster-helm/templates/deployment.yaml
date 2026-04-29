@@ -1,0 +1,296 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.webui.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "openwebui-kth-cluster-helm.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if or (and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql) (and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled) }}
+      initContainers:
+        {{- if and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql }}
+        - name: wait-for-postgresql
+          image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
+          imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until pg_isready -h "$DATABASE_HOST" -p "$DATABASE_PORT" -U "$DATABASE_USER" -d "$DATABASE_NAME"; do
+                sleep 2
+              done
+          env:
+            - name: DATABASE_HOST
+              value: {{ include "openwebui-kth-cluster-helm.postgresqlName" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ .Values.postgresql.primary.service.ports.postgresql | quote }}
+            - name: DATABASE_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: DATABASE_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+        {{- end }}
+        {{- if and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled }}
+        - name: wait-for-qdrant
+          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
+          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          command:
+            - python
+            - -c
+            - |
+              import os
+              import time
+              import urllib.request
+
+              uri = os.environ["QDRANT_URI"].rstrip("/")
+              api_key = os.environ.get("QDRANT_API_KEY", "")
+
+              while True:
+                  request = urllib.request.Request(f"{uri}/")
+                  if api_key:
+                      request.add_header("api-key", api_key)
+                  try:
+                      with urllib.request.urlopen(request, timeout=2) as response:
+                          if response.status < 500:
+                              break
+                  except Exception:
+                      time.sleep(2)
+          env:
+            - name: QDRANT_URI
+              value: {{ include "openwebui-kth-cluster-helm.qdrantUri" . | quote }}
+            {{- if .Values.vectorDatabase.qdrant.auth.enabled }}
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-kth-cluster-helm.qdrantSecretName" . | quote }}
+                  key: {{ include "openwebui-kth-cluster-helm.qdrantSecretKey" . | quote }}
+            {{- end }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: open-webui
+          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
+          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.webui.containerPort }}
+          env:
+            - name: OLLAMA_BASE_URL
+              value: {{ .Values.webui.ollamaBaseUrl | quote }}
+            {{- if .Values.webui.vllm.baseUrl }}
+            - name: OPENAI_API_BASE_URL
+              value: {{ .Values.webui.vllm.baseUrl | quote }}
+            {{- if .Values.webui.vllm.apiKey }}
+            - name: OPENAI_API_KEY
+              value: {{ .Values.webui.vllm.apiKey | quote }}
+            {{- end }}
+            {{- end }}
+            - name: WEBUI_AUTH
+              value: {{ ternary "true" "false" .Values.webui.authEnabled | quote }}
+            - name: HOME
+              value: {{ .Values.webui.home | quote }}
+            - name: WEBUI_SECRET_KEY
+              value: {{ .Values.webui.secretKey | quote }}
+            {{- if .Values.webui.corsAllowOrigin }}
+            - name: CORS_ALLOW_ORIGIN
+              value: {{ .Values.webui.corsAllowOrigin | quote }}
+            {{- end }}
+            {{- if .Values.webui.userAgent }}
+            - name: USER_AGENT
+              value: {{ .Values.webui.userAgent | quote }}
+            {{- end }}
+            - name: UVICORN_WORKERS
+              value: {{ .Values.webui.uvicornWorkers | quote }}
+            - name: ENABLE_REALTIME_CHAT_SAVE
+              value: {{ ternary "true" "false" .Values.webui.enableRealtimeChatSave | quote }}
+            {{- if .Values.webui.threadPoolSize }}
+            - name: THREAD_POOL_SIZE
+              value: {{ .Values.webui.threadPoolSize | quote }}
+            {{- end }}
+            {{- if .Values.webui.chatResponseStreamDeltaChunkSize }}
+            - name: CHAT_RESPONSE_STREAM_DELTA_CHUNK_SIZE
+              value: {{ .Values.webui.chatResponseStreamDeltaChunkSize | quote }}
+            {{- end }}
+            {{- if .Values.webui.enableBaseModelsCache }}
+            - name: ENABLE_BASE_MODELS_CACHE
+              value: "true"
+            {{- end }}
+            {{- if .Values.webui.modelsCacheTtl }}
+            - name: MODELS_CACHE_TTL
+              value: {{ .Values.webui.modelsCacheTtl | quote }}
+            {{- end }}
+            {{- if .Values.webui.enableQueriesCache }}
+            - name: ENABLE_QUERIES_CACHE
+              value: "true"
+            {{- end }}
+            {{- if .Values.database.url }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            {{- else if .Values.postgresql.enabled }}
+            - name: DATABASE_TYPE
+              value: "postgresql"
+            - name: DATABASE_HOST
+              value: {{ include "openwebui-kth-cluster-helm.postgresqlName" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ .Values.postgresql.primary.service.ports.postgresql | quote }}
+            - name: DATABASE_USER
+              value: {{ .Values.postgresql.auth.username | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-kth-cluster-helm.postgresqlSecretName" . | quote }}
+                  key: {{ default "password" .Values.postgresql.auth.secretKeys.userPasswordKey | quote }}
+            - name: DATABASE_NAME
+              value: {{ .Values.postgresql.auth.database | quote }}
+            {{- end }}
+            - name: ENABLE_DB_MIGRATIONS
+              value: {{ ternary "true" "false" .Values.database.enableMigrations | quote }}
+            - name: DATABASE_ENABLE_SESSION_SHARING
+              value: {{ ternary "true" "false" .Values.database.enableSessionSharing | quote }}
+            {{- if .Values.database.poolSize }}
+            - name: DATABASE_POOL_SIZE
+              value: {{ .Values.database.poolSize | quote }}
+            {{- end }}
+            {{- if .Values.database.poolMaxOverflow }}
+            - name: DATABASE_POOL_MAX_OVERFLOW
+              value: {{ .Values.database.poolMaxOverflow | quote }}
+            {{- end }}
+            {{- if .Values.database.poolTimeout }}
+            - name: DATABASE_POOL_TIMEOUT
+              value: {{ .Values.database.poolTimeout | quote }}
+            {{- end }}
+            {{- if .Values.database.poolRecycle }}
+            - name: DATABASE_POOL_RECYCLE
+              value: {{ .Values.database.poolRecycle | quote }}
+            {{- end }}
+            - name: DATABASE_ENABLE_SQLITE_WAL
+              value: {{ ternary "true" "false" .Values.database.sqlite.enableWal | quote }}
+            {{- if .Values.database.sqlite.busyTimeout }}
+            - name: DATABASE_SQLITE_PRAGMA_BUSY_TIMEOUT
+              value: {{ .Values.database.sqlite.busyTimeout | quote }}
+            {{- end }}
+            {{- if .Values.redis.url }}
+            - name: REDIS_URL
+              value: {{ .Values.redis.url | quote }}
+            {{- end }}
+            {{- if .Values.redis.socketConnectTimeout }}
+            - name: REDIS_SOCKET_CONNECT_TIMEOUT
+              value: {{ .Values.redis.socketConnectTimeout | quote }}
+            {{- end }}
+            - name: REDIS_SOCKET_KEEPALIVE
+              value: {{ ternary "true" "false" .Values.redis.socketKeepalive | quote }}
+            {{- if .Values.vectorDatabase.type }}
+            - name: VECTOR_DB
+              value: {{ .Values.vectorDatabase.type | quote }}
+            {{- end }}
+            {{- if eq .Values.vectorDatabase.type "qdrant" }}
+            - name: QDRANT_URI
+              value: {{ include "openwebui-kth-cluster-helm.qdrantUri" . | quote }}
+            {{- if .Values.vectorDatabase.qdrant.auth.enabled }}
+            - name: QDRANT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "openwebui-kth-cluster-helm.qdrantSecretName" . | quote }}
+                  key: {{ include "openwebui-kth-cluster-helm.qdrantSecretKey" . | quote }}
+            {{- end }}
+            - name: QDRANT_ON_DISK
+              value: {{ ternary "true" "false" .Values.vectorDatabase.qdrant.onDisk | quote }}
+            - name: QDRANT_PREFER_GRPC
+              value: {{ ternary "true" "false" .Values.vectorDatabase.qdrant.preferGrpc | quote }}
+            {{- if .Values.vectorDatabase.qdrant.grpcPort }}
+            - name: QDRANT_GRPC_PORT
+              value: {{ .Values.vectorDatabase.qdrant.grpcPort | quote }}
+            {{- end }}
+            {{- if .Values.vectorDatabase.qdrant.timeout }}
+            - name: QDRANT_TIMEOUT
+              value: {{ .Values.vectorDatabase.qdrant.timeout | quote }}
+            {{- end }}
+            {{- if .Values.vectorDatabase.qdrant.hnswM }}
+            - name: QDRANT_HNSW_M
+              value: {{ .Values.vectorDatabase.qdrant.hnswM | quote }}
+            {{- end }}
+            - name: ENABLE_QDRANT_MULTITENANCY_MODE
+              value: {{ ternary "true" "false" .Values.vectorDatabase.qdrant.enableMultitenancyMode | quote }}
+            {{- if .Values.vectorDatabase.qdrant.collectionPrefix }}
+            - name: QDRANT_COLLECTION_PREFIX
+              value: {{ .Values.vectorDatabase.qdrant.collectionPrefix | quote }}
+            {{- end }}
+            {{- end }}
+            {{- with .Values.webui.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /app/backend/data
+            {{- if .Values.staticVolume.enabled }}
+            - name: static
+              mountPath: /app/backend/open_webui/static
+            {{- end }}
+            {{- if .Values.tmpVolume.enabled }}
+            - name: tmp
+              mountPath: /tmp
+            {{- end }}
+          resources:
+            {{- toYaml .Values.webui.resources | nindent 12 }}
+          securityContext:
+            {{- toYaml .Values.webui.securityContext | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.webui.containerPort }}
+            initialDelaySeconds: {{ .Values.webui.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.readinessProbe.periodSeconds }}
+        {{- if .Values.tailscale.enabled }}
+        - name: ts-sidecar
+          image: "{{ .Values.tailscale.image.repository }}:{{ .Values.tailscale.image.tag }}"
+          imagePullPolicy: {{ .Values.tailscale.image.pullPolicy }}
+          env:
+            - name: TS_KUBE_SECRET
+              value: {{ .Values.rbac.stateSecretName | quote }}
+            - name: TS_USERSPACE
+              value: {{ .Values.tailscale.env.userspace | quote }}
+            - name: TS_DEBUG_FIREWALL_MODE
+              value: {{ .Values.tailscale.env.debugFirewallMode | quote }}
+            - name: TS_AUTHKEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.tailscale.authSecret.name | quote }}
+                  key: {{ .Values.tailscale.authSecret.key | quote }}
+                  optional: {{ .Values.tailscale.authSecret.optional }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_UID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.uid
+          securityContext:
+            {{- toYaml .Values.tailscale.securityContext | nindent 12 }}
+        {{- end }}
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "openwebui-kth-cluster-helm.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.staticVolume.enabled }}
+        - name: static
+          emptyDir: {}
+        {{- end }}
+        {{- if .Values.tmpVolume.enabled }}
+        - name: tmp
+          emptyDir: {}
+        {{- end }}
