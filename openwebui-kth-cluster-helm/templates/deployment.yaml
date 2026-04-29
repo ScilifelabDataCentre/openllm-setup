@@ -280,8 +280,12 @@ spec:
         {{- end }}
       volumes:
         - name: data
+          {{- if .Values.persistence.enabled }}
           persistentVolumeClaim:
             claimName: {{ include "openwebui-kth-cluster-helm.pvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
         {{- if .Values.staticVolume.enabled }}
         - name: static
           emptyDir: {}
