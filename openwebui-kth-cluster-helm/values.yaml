@@ -158,12 +158,21 @@ postgresql:
     pullSecrets: []
   auth:
     username: openwebui
+    # Keep false for remote/ArgoCD deployments after PostgreSQL has been initialized.
+    # Changing the Kubernetes Secret alone does not rotate the password stored in
+    # the PostgreSQL data volume.
+    createSecret: false
     password: ""
     database: openwebui
     postgresPassword: ""
-    existingSecret: ""
+    # Secret consumed by both Bitnami PostgreSQL and Open WebUI.
+    # With createSecret=false, create and rotate this secret outside the chart.
+    # Set createSecret=true only for first-time bootstrap before the PostgreSQL
+    # data volume is initialized.
+    existingSecret: "open-webui-postgresql"
     secretKeys:
       userPasswordKey: password
+      adminPasswordKey: postgres-password
   primary:
     service:
       ports:

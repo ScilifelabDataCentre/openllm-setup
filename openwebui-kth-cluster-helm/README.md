@@ -50,6 +50,14 @@ If `database.url` is empty and `postgresql.enabled=true`, Open WebUI is wired to
 If `database.url` is set, that external database takes precedence.
 The chart also waits for the bundled PostgreSQL service before starting Open WebUI, because upstream exits on initial connection refusal instead of retrying cleanly.
 
+## PostgreSQL secret
+
+`postgresql.auth.existingSecret` is the single Secret name used by both the Bitnami PostgreSQL dependency and Open WebUI. When it is set, Bitnami will not create its own credentials Secret.
+
+For ArgoCD deployments, keep this Secret managed outside Helm after the first PostgreSQL boot. Changing the Kubernetes Secret alone does not rotate the password stored for the `openwebui` role inside an already-initialized PostgreSQL data volume; new Open WebUI pods will read the new Secret and fail authentication.
+
+The chart defaults `postgresql.auth.createSecret=false`. If `postgresql.auth.password` or `postgresql.auth.postgresPassword` are set while `createSecret=false`, rendering fails so a private values overlay cannot silently desynchronize the Secret from PostgreSQL. Set `createSecret=true` only for first-time bootstrap before the PostgreSQL PVC is initialized. After bootstrap, rotate credentials by changing both the Kubernetes Secret and the PostgreSQL role password in the database.
+
 For Kubernetes/non-root deployments, the chart also mounts a writable `emptyDir` at `/app/backend/open_webui/static`.
 This avoids the known upstream permission errors when Open WebUI tries to write generated static assets like `favicon.png`, `custom.css`, and `loader.js`.
 
@@ -124,6 +132,15 @@ webui:
 ```
 
 If your vLLM endpoint requires authentication, set `webui.vllm.apiKey`.
+
+## ArgoCD deployment
+
+This chart is deployed via ArgoCD on the KTH cluster:
+
+- **App name:** `open-llm-dev`
+- **URL:** https://openllm.scilifelab.se/
+
+ArgoCD tracks the `main` branch and syncs the chart from the `openwebui-kth-cluster-helm` directory. Environment-specific overrides and secrets are managed outside the chart through ArgoCD's values overlays or a gitignored `values-local.yaml`.
 
 ## Usage
 
