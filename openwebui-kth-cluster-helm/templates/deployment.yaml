@@ -101,6 +101,14 @@ spec:
               value: {{ .Values.webui.home | quote }}
             - name: WEBUI_SECRET_KEY
               value: {{ .Values.webui.secretKey | quote }}
+            {{- if .Values.webui.corsAllowOrigin }}
+            - name: CORS_ALLOW_ORIGIN
+              value: {{ .Values.webui.corsAllowOrigin | quote }}
+            {{- end }}
+            {{- if .Values.webui.userAgent }}
+            - name: USER_AGENT
+              value: {{ .Values.webui.userAgent | quote }}
+            {{- end }}
             - name: UVICORN_WORKERS
               value: {{ .Values.webui.uvicornWorkers | quote }}
             - name: ENABLE_REALTIME_CHAT_SAVE

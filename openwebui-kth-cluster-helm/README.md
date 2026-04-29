@@ -25,6 +25,10 @@ The chart defaults currently include:
 - persistence: enabled, `ReadWriteOnce`, `5Gi`
 - ingress host: `open-webui.localhost`
 
+For this deployment, Open WebUI images are built in `https://github.com/ScilifelabDataCentre/open-webui`.
+The image artifacts are published under `ghcr.io/scilifelabdatacentre/open-webui:main`.
+Documentation for the Open WebUI image build process is in the `open-webui` [repository README](https://github.com/ScilifelabDataCentre/open-webui/blob/scilifelab/main/SCILIFELAB_README.md).
+
 ## Remote deployment baseline
 
 For remote or shared deployments, do not rely on the default SQLite-only setup on a Kubernetes PVC.
