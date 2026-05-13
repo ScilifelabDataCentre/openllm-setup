@@ -1,0 +1,55 @@
+{
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+  ],
+  packageRules: [
+    {
+      description: 'suprpy Python runtime dependencies – manual review',
+      matchManagers: [
+        'poetry',
+        'pip-compile',
+        'pip_requirements',
+        'pip_setup',
+      ],
+      matchFileNames: [
+        'pyproject.toml',
+        'poetry.lock',
+        'requirements*.txt',
+        'setup.cfg',
+        'setup.py',
+      ],
+      groupName: 'suprpy runtime dependencies',
+      automerge: false,
+      automergeType: 'pr',
+      matchPackageNames: [
+        '!/^black$/',
+        '!/^isort$/',
+        '!/^mypy$/',
+        '!/^pytest/',
+        '!/^flake8/',
+        '!/^ruff/',
+      ],
+    },
+    {
+      description: 'Developer tooling (black, isort, mypy, pytest, ruff, etc.)',
+      matchManagers: [
+        'poetry',
+        'pip-compile',
+        'pip_requirements',
+        'pip_setup',
+      ],
+      groupName: 'dev tooling',
+      automerge: true,
+      automergeType: 'branch',
+      matchPackageNames: [
+        '/^black$/',
+        '/^isort$/',
+        '/^mypy$/',
+        '/^pytest/',
+        '/^flake8/',
+        '/^ruff/',
+      ],
+    },
+  ],
+}
