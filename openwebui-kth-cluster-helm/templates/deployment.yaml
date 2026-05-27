@@ -294,3 +294,46 @@ spec:
         - name: tmp
           emptyDir: {}
         {{- end }}
+{{- if .Values.docs.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.docsName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.docsLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.docs.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.docsSelectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "openwebui-kth-cluster-helm.docsSelectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.docs.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: docs
+          image: "{{ .Values.docs.image.repository }}:{{ .Values.docs.image.tag }}"
+          imagePullPolicy: {{ .Values.docs.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.docs.containerPort }}
+          resources:
+            {{- toYaml .Values.docs.resources | nindent 12 }}
+          {{- with .Values.docs.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.docs.readinessProbe.path | quote }}
+              port: http
+            initialDelaySeconds: {{ .Values.docs.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.docs.readinessProbe.periodSeconds }}
+{{- end }}

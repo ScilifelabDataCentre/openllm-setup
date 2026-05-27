@@ -26,6 +26,22 @@ app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
+{{- define "openwebui-kth-cluster-helm.docsName" -}}
+{{- printf "%s-docs" (include "openwebui-kth-cluster-helm.fullname" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.docsLabels" -}}
+app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.docsName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.docsSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.docsName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
 {{- define "openwebui-kth-cluster-helm.qdrantLabels" -}}
 app.kubernetes.io/name: qdrant
 app.kubernetes.io/instance: {{ .Release.Name }}

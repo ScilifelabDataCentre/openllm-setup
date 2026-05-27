@@ -71,6 +71,27 @@ webui:
     periodSeconds: 10
   extraEnv: []
 
+docs:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: ghcr.io/scilifelabdatacentre/openllm-docs
+    tag: latest
+    pullPolicy: IfNotPresent
+  containerPort: 80
+  service:
+    port: 80
+  ingress:
+    path: /docs
+    pathType: Prefix
+  podSecurityContext: {}
+  securityContext: {}
+  resources: {}
+  readinessProbe:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
 database:
   # Overrides the bundled PostgreSQL dependency when set.
   url: ""
