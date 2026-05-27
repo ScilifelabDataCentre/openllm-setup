@@ -84,7 +84,9 @@ docs:
   ingress:
     pathType: Prefix
     paths:
+      - path: /use-policy
       - path: /use-policy/
+      - path: /guides
       - path: /guides/
   podSecurityContext: {}
   securityContext: {}
@@ -248,6 +250,10 @@ ingress:
   secretName: open-llm-tls
   hosts:
     - host: open-llm.scilifelab.se
+      paths:
+        - path: /
+          pathType: Prefix
+    - host: openllm.scilifelab.se
       paths:
         - path: /
           pathType: Prefix
