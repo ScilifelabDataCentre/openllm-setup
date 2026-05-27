@@ -82,8 +82,10 @@ docs:
   service:
     port: 80
   ingress:
-    path: /docs
     pathType: Prefix
+    paths:
+      - path: /use-policy/
+      - path: /guides/
   podSecurityContext: {}
   securityContext: {}
   resources: {}

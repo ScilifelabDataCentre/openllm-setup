@@ -26,13 +26,15 @@ spec:
       http:
         paths:
           {{- if $.Values.docs.enabled }}
-          - path: {{ $.Values.docs.ingress.path }}
+          {{- range $.Values.docs.ingress.paths }}
+          - path: {{ .path }}
             pathType: {{ $.Values.docs.ingress.pathType }}
             backend:
               service:
                 name: {{ include "openwebui-kth-cluster-helm.docsName" $ }}
                 port:
                   number: {{ $.Values.docs.service.port }}
+          {{- end }}
           {{- end }}
           {{- range .paths }}
           - path: {{ .path }}
