@@ -34,6 +34,34 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ["0"]
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  vllm-qwen3-coder:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
+    container_name: ${QWEN3_CODER_CONTAINER_NAME}
+    ports:
+      - "${QWEN3_CODER_HOST_PORT}:8000"
+    ipc: host
+    volumes:
+      - ${HF_CACHE_DIR}:/root/.cache/huggingface
+      - ./vllm-config.yaml:/workspace/vllm-config.yaml:ro
+    environment:
+      HF_HOME: /root/.cache/huggingface
+      HF_TOKEN: ${HF_TOKEN:-}
+      VLLM_API_KEY: ${QWEN3_CODER_API_KEY:-${VLLM_API_KEY}}
+    command: >
+      --config /workspace/vllm-config.yaml
+      --model ${QWEN3_CODER_MODEL}
+      --served-model-name ${QWEN3_CODER_SERVED_MODEL_NAME}
+      --enable-auto-tool-choice
+      --tool-call-parser qwen3_coder
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["1"]
               capabilities: [gpu]
     restart: unless-stopped
