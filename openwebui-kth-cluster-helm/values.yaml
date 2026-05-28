@@ -85,9 +85,7 @@ docs:
     pathType: Prefix
     paths:
       - path: /use-policy
-      - path: /use-policy/
       - path: /guides
-      - path: /guides/
   podSecurityContext: {}
   securityContext: {}
   resources: {}
