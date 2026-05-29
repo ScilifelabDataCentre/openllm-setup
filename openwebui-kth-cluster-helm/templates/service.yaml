@@ -12,3 +12,21 @@ spec:
   ports:
     - port: {{ .Values.service.port }}
       targetPort: {{ .Values.service.targetPort }}
+{{- if .Values.docs.enabled }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.docsName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.docsLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "openwebui-kth-cluster-helm.docsSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.docs.service.port }}
+      targetPort: http
+{{- end }}
