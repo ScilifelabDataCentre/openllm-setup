@@ -66,6 +66,11 @@ webui:
       drop:
         - ALL
     readOnlyRootFilesystem: false
+  initContainerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
   readinessProbe:
     initialDelaySeconds: 15
     periodSeconds: 10
@@ -86,8 +91,16 @@ docs:
     paths:
       - path: /use-policy
       - path: /guides
-  podSecurityContext: {}
-  securityContext: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
   resources: {}
   readinessProbe:
     path: /

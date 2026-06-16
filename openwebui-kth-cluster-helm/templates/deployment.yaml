@@ -24,6 +24,8 @@ spec:
         - name: wait-for-postgresql
           image: "{{ .Values.postgresql.image.registry }}/{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.webui.initContainerSecurityContext | nindent 12 }}
           command:
             - /bin/sh
             - -ec
@@ -45,6 +47,8 @@ spec:
         - name: wait-for-qdrant
           image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
           imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.webui.initContainerSecurityContext | nindent 12 }}
           command:
             - python
             - -c
