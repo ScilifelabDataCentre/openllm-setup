@@ -168,6 +168,8 @@ vectorDatabase:
         memory: 2Gi
     podSecurityContext:
       fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
