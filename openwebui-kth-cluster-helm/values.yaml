@@ -201,7 +201,7 @@ postgresql:
     # Keep false for remote/ArgoCD deployments after PostgreSQL has been initialized.
     # Changing the Kubernetes Secret alone does not rotate the password stored in
     # the PostgreSQL data volume.
-    createSecret: true
+    createSecret: false
     password: ""
     database: openwebui
     postgresPassword: ""
