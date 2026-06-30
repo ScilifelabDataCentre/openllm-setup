@@ -1,0 +1,8 @@
+apiVersion: v2
+name: embeddings-kth-cluster-helm
+description: BGE-M3 embedding backend (vLLM, OpenAI-compatible /v1/embeddings) on the KTH cluster, for Open WebUI RAG.
+type: application
+# Chart version. Bump on every change to the chart itself.
+version: 0.1.0
+# The vLLM image tag this chart is validated against (see values.yaml image.tag).
+appVersion: "v0.10.2"

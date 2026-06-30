@@ -1,0 +1,139 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "embeddings.fullname" . }}
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "embeddings.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "embeddings.selectorLabels" . | nindent 6 }}
+  # One GPU, one pod: Recreate avoids two pods fighting over the same card
+  # during a rollout.
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "embeddings.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      {{- with .Values.gpu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gpu.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.gpu.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "--model"
+            - {{ .Values.model.id | quote }}
+            - "--served-model-name"
+            - {{ .Values.model.servedName | quote }}
+            - "--task"
+            - {{ .Values.model.task | quote }}
+            - "--dtype"
+            - {{ .Values.model.dtype | quote }}
+            - "--max-model-len"
+            - {{ .Values.model.maxModelLen | quote }}
+            - "--gpu-memory-utilization"
+            - {{ .Values.model.gpuMemoryUtilization | quote }}
+            {{- range .Values.model.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+          env:
+            # The pod runs non-root (restricted PSS), so all caches must live on
+            # a writable mount. The model-cache volume is mounted at /data and is
+            # made group-writable by fsGroup. HF_HOME holds the model weights;
+            # HOME catches torch/triton/vllm caches under ~/.cache.
+            - name: HF_HOME
+              value: /data/huggingface
+            - name: HOME
+              value: /data
+            # The image has no /etc/passwd entry for uid 1000, so Python's
+            # getpass.getuser() (used by torch.compile's cache-dir logic) would
+            # raise "uid not found". getpass checks USER/LOGNAME before the user
+            # database, so setting USER short-circuits that lookup.
+            - name: USER
+              value: "vllm"
+            # Bearer token vLLM requires on every request.
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.apiKey.existingSecret }}
+                  key: {{ .Values.apiKey.secretKey }}
+            {{- if .Values.huggingface.existingSecret }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.huggingface.existingSecret }}
+                  key: {{ .Values.huggingface.secretKey }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.resources.requests.cpu | quote }}
+              memory: {{ .Values.resources.requests.memory | quote }}
+            limits:
+              {{ .Values.gpu.resourceName }}: {{ .Values.gpu.count }}
+              cpu: {{ .Values.resources.limits.cpu | quote }}
+              memory: {{ .Values.resources.limits.memory | quote }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /data
+            - name: dshm
+              mountPath: /dev/shm
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: {{ .Values.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.startupProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+      volumes:
+        - name: hf-cache
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "embeddings.fullname" . }}-hf-cache
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.dshmSize }}

@@ -1,0 +1,196 @@
+# =============================================================================
+# embeddings-kth-cluster-helm  values
+# =============================================================================
+# A dedicated vLLM instance serving an OpenAI-compatible /v1/embeddings API,
+# intended to back Open WebUI's RAG (document search) feature.
+#
+# Lives on the SAME Kubernetes cluster as Open WebUI, so the frontend reaches
+# it over in-cluster DNS. No Tailscale, no public IP.
+#
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Namespace
+# -----------------------------------------------------------------------------
+# Default is a dedicated namespace.
+namespace:
+  create: true
+  name: llm-embeddings
+  labels: {}
+  annotations:
+    # Ensure the namespace is created before the workload when synced by ArgoCD.
+    argocd.argoproj.io/sync-wave: "-2"
+
+nameOverride: ""
+# Keeps the Deployment/Service named "embeddings" so the in-cluster DNS name is
+# predictable: http://embeddings.<namespace>.svc.cluster.local:8000
+fullnameOverride: "embeddings"
+
+replicaCount: 1
+
+serviceAccount:
+  create: true
+  name: embeddings
+
+# -----------------------------------------------------------------------------
+# Container image  (same family as the chat backend, for one consistent stack)
+# -----------------------------------------------------------------------------
+image:
+  repository: vllm/vllm-openai
+  # Pin for reproducibility. Matches the chat backend's pinned tag.
+  # If you bump this, re-confirm the embedding flags below still apply
+  # (newer vLLM prefers `--runner pooling` over `--task embed`).
+  tag: "v0.10.2"
+  pullPolicy: IfNotPresent
+
+# -----------------------------------------------------------------------------
+# Model  (the API contract; keep servedName stable once clients/RAG use it)
+# -----------------------------------------------------------------------------
+model:
+  # HuggingFace model ID vLLM downloads and loads. BGE-M3 is public (no token).
+  id: "BAAI/bge-m3"
+  # Name exposed to clients in /v1/models and used as the "model" field.
+  # Open WebUI's RAG_EMBEDDING_MODEL must match this exactly.
+  servedName: "bge-m3"
+  # Run vLLM as an embedding/pooling model rather than a generator.
+  # On vLLM >= ~0.11 this becomes `--runner pooling`; on v0.10.x use `embed`.
+  task: "embed"
+  # A40 is Ampere: BF16/FP16 only. FP8 is NOT supported on this card.
+  dtype: "bfloat16"
+  # BGE-M3 supports up to 8192 tokens.
+  maxModelLen: 8192
+  # Fraction of GPU memory vLLM may use. BGE-M3 needs ~1 GB, so this is generous
+  # and also leaves headroom if you later switch to a larger embedding model.
+  gpuMemoryUtilization: "0.40"
+  # Any extra raw vLLM args, e.g. ["--trust-remote-code"] for some models.
+  extraArgs: []
+
+# -----------------------------------------------------------------------------
+# GPU scheduling
+# -----------------------------------------------------------------------------
+gpu:
+  # The extended resource the device plugin advertises.
+  resourceName: "nvidia.com/gpu"
+  count: 1
+
+  # CONFIRMED
+  nodeSelector:
+    nvidia.com/gpu.product: NVIDIA-A40-48C
+
+  # CONFIRMED taint on those GPU workers: nvidia.com/gpu:NoSchedule (key only,
+  # no value), so operator: Exists is required.
+  #   kubectl get node <gpu-node> -o jsonpath='{.spec.taints}'
+  #   => [{"effect":"NoSchedule","key":"nvidia.com/gpu"}]
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+  # Optional hard/soft affinity if nodeSelector is not enough.
+  affinity: {}
+
+# -----------------------------------------------------------------------------
+# Auth  (Bearer token clients must send; created out-of-band as a Secret)
+# -----------------------------------------------------------------------------
+# Create this Secret BEFORE the first ArgoCD sync. See examples/secret.example.yaml
+# The chart does NOT create it
+apiKey:
+  existingSecret: "embeddings-api-key"
+  secretKey: "api-key"
+
+# Optional HuggingFace token, only needed for gated/private models.
+# BGE-M3 is public, so leave existingSecret empty.
+huggingface:
+  existingSecret: ""
+  secretKey: "token"
+
+# -----------------------------------------------------------------------------
+# Model cache (so weights are not re-downloaded on every restart)
+# -----------------------------------------------------------------------------
+persistence:
+  enabled: true
+  # Leave empty to use the cluster default StorageClass.
+  storageClass: ""
+  accessModes:
+    - ReadWriteOnce
+  # BGE-M3 is ~2.5 GB; 20 GB leaves room for a larger model later.
+  size: 20Gi
+
+# Shared-memory volume. The Compose backend uses `ipc: host`; on Kubernetes the
+# default /dev/shm is only 64Mi, which vLLM can outgrow. This mirrors that.
+dshmSize: 8Gi
+
+# -----------------------------------------------------------------------------
+# Resources  (the GPU is the real constraint; CPU/RAM is for load + serving)
+# -----------------------------------------------------------------------------
+resources:
+  requests:
+    cpu: "1"
+    memory: 8Gi
+  limits:
+    cpu: "4"
+    memory: 24Gi
+
+# -----------------------------------------------------------------------------
+# Security context
+# -----------------------------------------------------------------------------
+# This cluster enforces the "restricted" Pod Security Standard on the namespace,
+# so the pod MUST run non-root, set a seccomp profile, drop all capabilities, and
+# disallow privilege escalation. vLLM runs fine under these rules because its
+# caches are redirected to the writable /data mount (see HF_HOME/HOME in the
+# deployment). fsGroup makes that mounted volume writable by the non-root user.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  seccompProfile:
+    type: RuntimeDefault
+
+# -----------------------------------------------------------------------------
+# Service  (ClusterIP only; reached from inside the cluster)
+# -----------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+# -----------------------------------------------------------------------------
+# NetworkPolicy  (allow inbound only from Open WebUI)
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: true
+  # Namespace Open WebUI runs in. Matched via the auto-applied
+  # kubernetes.io/metadata.name label (Kubernetes >= 1.21).
+  allowedNamespace: "open-llm-dev"
+  # Optionally also require specific pod labels (AND with the namespace match).
+  # Leave empty to allow the whole namespace. Open WebUI pods are labelled
+  # app.kubernetes.io/name=open-webui in the openwebui chart.
+  allowedPodLabels: {}
+  #   app.kubernetes.io/name: open-webui
+
+# -----------------------------------------------------------------------------
+# Probes  (vLLM exposes /health; first start includes a model download)
+# -----------------------------------------------------------------------------
+startupProbe:
+  # Allows up to periodSeconds * failureThreshold for first download + load.
+  periodSeconds: 15
+  failureThreshold: 60
+readinessProbe:
+  initialDelaySeconds: 10
+  periodSeconds: 10
+livenessProbe:
+  initialDelaySeconds: 30
+  periodSeconds: 20
+
+# Extra environment variables for the vLLM container, if needed.
+extraEnv: []
