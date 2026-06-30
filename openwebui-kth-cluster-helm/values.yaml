@@ -1,6 +1,6 @@
 namespace:
   create: true
-  name: llm-stack
+  name: openllm
   annotations:
     argocd.argoproj.io/sync-wave: "-2"
 
@@ -12,7 +12,7 @@ serviceAccount:
   name: tailscale
 
 rbac:
-  create: true
+  create: false
   stateSecretName: open-webui-tailscale-state
 
 persistence:
@@ -33,8 +33,8 @@ podSecurityContext:
 webui:
   replicaCount: 1
   image:
-    repository: ghcr.io/open-webui/open-webui
-    tag: main
+    repository: ghcr.io/scilifelabdatacentre/open-webui
+    tag: git-5c3b3dd
     pullPolicy: IfNotPresent
   containerPort: 8080
   uvicornWorkers: 1
@@ -45,7 +45,7 @@ webui:
   authEnabled: true
   home: /tmp
   secretKey: "replace-with-secure-random-string"
-  corsAllowOrigin: "https://open-llm.scilifelab.se;https://openllm.scilifelab.se"
+  corsAllowOrigin: "openllm.gw.scilifelab-2-dev.sys.kth.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
   enableRealtimeChatSave: false
   enableBaseModelsCache: true
@@ -81,11 +81,11 @@ docs:
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: latest
+    tag: sha-eefbc5f
     pullPolicy: IfNotPresent
-  containerPort: 80
+  containerPort: 8080
   service:
-    port: 80
+    port: 8080
   ingress:
     pathType: Prefix
     paths:
@@ -201,7 +201,7 @@ postgresql:
     # Keep false for remote/ArgoCD deployments after PostgreSQL has been initialized.
     # Changing the Kubernetes Secret alone does not rotate the password stored in
     # the PostgreSQL data volume.
-    createSecret: false
+    createSecret: true
     password: ""
     database: openwebui
     postgresPassword: ""
@@ -229,7 +229,7 @@ postgresql:
         memory: 2Gi
 
 tailscale:
-  enabled: true
+  enabled: false
   image:
     repository: ghcr.io/tailscale/tailscale
     tag: latest
@@ -262,14 +262,11 @@ ingress:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   secretName: open-llm-tls
   hosts:
-    - host: open-llm.scilifelab.se
+    - host: openllm.gw.scilifelab-2-dev.sys.kth.se
       paths:
         - path: /
           pathType: Prefix
-    - host: openllm.scilifelab.se
-      paths:
-        - path: /
-          pathType: Prefix
+
 
 networkPolicy:
   enabled: true

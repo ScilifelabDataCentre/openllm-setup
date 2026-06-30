@@ -104,7 +104,10 @@ spec:
             - name: HOME
               value: {{ .Values.webui.home | quote }}
             - name: WEBUI_SECRET_KEY
-              value: {{ .Values.webui.secretKey | quote }}
+              valueFrom:
+                secretKeyRef:
+                  name: openllm-secrets
+                  key: openwebui-secret-key
             {{- if .Values.webui.corsAllowOrigin }}
             - name: CORS_ALLOW_ORIGIN
               value: {{ .Values.webui.corsAllowOrigin | quote }}
