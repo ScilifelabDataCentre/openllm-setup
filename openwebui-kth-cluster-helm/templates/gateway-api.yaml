@@ -16,5 +16,5 @@ spec:
       port: 443
   rules:
     - backendRefs:
-      - name: openllm
-        port: 80
+      - name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
+        port: {{ .Values.service.port }}
