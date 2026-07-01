@@ -16,5 +16,5 @@ spec:
       port: 443
   rules:
     - backendRefs:
-      - name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
-        port: {{ .Values.service.port }}
+      - name: "open-webui"
+        port: 8080
