@@ -45,7 +45,7 @@ webui:
   authEnabled: true
   home: /tmp
   secretKey: "replace-with-secure-random-string"
-  corsAllowOrigin: "https://openllm.gw.scilifelab-2-dev.sys.kth.se"
+  corsAllowOrigin: "https://openllm.scilifelab-2-dev.sys.kth.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
   enableRealtimeChatSave: false
   enableBaseModelsCache: true
