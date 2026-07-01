@@ -1,67 +1,20 @@
-{{- if .Values.ingress.enabled }}
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  annotations:
-    gateway.networking.k8s.io/generator: ingress2gateway-1.1.0
-  labels:
-    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
-  name: {{ .Values.ingress.className | default "nginx" }}
-  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
-spec:
-  gatewayClassName: {{ .Values.ingress.className | default "nginx" }}
-  listeners:
-  {{- range .Values.ingress.hosts }}
-  - hostname: {{ .host | quote }}
-    name: {{ printf "%s-http" (.host | replace "." "-") | trunc 63 | trimSuffix "-" }}
-    port: 80
-    protocol: HTTP
-  - hostname: {{ .host | quote }}
-    name: {{ printf "%s-https" (.host | replace "." "-") | trunc 63 | trimSuffix "-" }}
-    port: 443
-    protocol: HTTPS
-    tls:
-      certificateRefs:
-      - group: ""
-        kind: Secret
-        name: {{ $.Values.ingress.secretName }}
-  {{- end }}
-{{- range .Values.ingress.hosts }}
----
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  annotations:
-    gateway.networking.k8s.io/generator: ingress2gateway-1.1.0
-  labels:
-    {{- include "openwebui-kth-cluster-helm.labels" $ | nindent 4 }}
-  name: {{ printf "%s-%s" (include "openwebui-kth-cluster-helm.fullname" $) (.host | replace "." "-") | trunc 63 | trimSuffix "-" }}
-  namespace: {{ include "openwebui-kth-cluster-helm.namespace" $ }}
+  name: openllm
+  namespace: {{ .Values.namespace.name }}
 spec:
   hostnames:
-  - {{ .host | quote }}
+    {{-range .Values.gateway.hosts}}
+    - {{ .host }}
+    {{ end }}
   parentRefs:
-  - name: {{ $.Values.ingress.className | default "nginx" }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default
+      namespace: gateway
+      port: 443
   rules:
-  {{- if $.Values.docs.enabled }}
-  {{- range $.Values.docs.ingress.paths }}
-  - backendRefs:
-    - name: {{ include "openwebui-kth-cluster-helm.docsName" $ }}
-      port: {{ $.Values.docs.service.port }}
-    matches:
-    - path:
-        type: {{ $.Values.docs.ingress.pathType | default "PathPrefix" | replace "Prefix" "PathPrefix" }}
-        value: {{ .path }}
-  {{- end }}
-  {{- end }}
-  {{- range .paths }}
-  - backendRefs:
-    - name: {{ include "openwebui-kth-cluster-helm.fullname" $ }}
-      port: {{ $.Values.service.port }}
-    matches:
-    - path:
-        type: {{ .pathType | default "PathPrefix" | replace "Prefix" "PathPrefix" }}
-        value: {{ .path }}
-  {{- end }}
-{{- end }}
-{{- end }}
+    - backendRefs:
+      - name: openllm
+        port: 80

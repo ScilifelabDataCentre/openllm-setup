@@ -253,7 +253,7 @@ service:
   port: 8080
   targetPort: 8080
 
-ingress:
+gateway:
   enabled: true
   className: nginx
   annotations:
