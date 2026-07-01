@@ -262,7 +262,7 @@ gateway:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   secretName: open-llm-tls
   hosts:
-    - host: openllm.gw.scilifelab-2-dev.sys.kth.se
+    - host: openllm.scilifelab-2-dev.sys.kth.se
       paths:
         - path: /
           pathType: Prefix
