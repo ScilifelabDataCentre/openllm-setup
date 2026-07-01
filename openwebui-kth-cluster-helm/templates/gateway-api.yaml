@@ -5,9 +5,9 @@ metadata:
   namespace: {{ .Values.namespace.name }}
 spec:
   hostnames:
-    {{-range .Values.gateway.hosts}}
-    - {{ .host }}
-    {{ end }}
+{{- range .Values.gateway.hosts }}
+    - {{ .host | quote }}
+{{- end }}
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
