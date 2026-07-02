@@ -1,4 +1,5 @@
 import pytest
+import time
 
 from functions.oi_request_quota_guard import Filter, RateLimitExceededError
 
@@ -46,12 +47,13 @@ async def test_allowed_request_updates_global_state(
 
 
 @pytest.mark.asyncio
-async def test_request_above_quota_is_denied(
+async def test_second_request_is_denied_when_limit_is_one(
     quota_guard,
     global_state,
     test_body,
     test_user,
 ):
+    # The request limit is set to 1 for this test
     quota_guard.valves.requests_per_minute = 1
 
     await quota_guard.inlet(
@@ -78,3 +80,53 @@ async def test_request_above_quota_is_denied(
     assert counters["requests_attempted"] == 2
     assert counters["requests_allowed"] == 1
     assert counters["requests_denied"] == 1
+
+
+@pytest.mark.asyncio
+async def test_old_timestamps_are_cleaned(
+    quota_guard,
+    global_state,
+    test_body,
+    test_user,
+):
+    quota_guard.valves.requests_per_minute = 1
+
+    old_timestamp = time.time() - 120
+
+    global_state["scilifelab_request_quota_guard"] = {
+        "version": 1,
+        "users": {
+            "user-123": {
+                "timestamps": [old_timestamp],
+                "limit": 1,
+                "used": 1,
+                "remaining": 0,
+                "reset_at": None,
+                "last_checked_at": None,
+                "last_allowed": None,
+                "last_model": None,
+                "last_interface": None,
+            }
+        },
+        "counters": {
+            "user-123": {
+                "requests_attempted": 0,
+                "requests_allowed": 0,
+                "requests_denied": 0,
+            }
+        },
+    }
+
+    await quota_guard.inlet(
+        test_body,
+        __user__=test_user,
+        __global_state__=global_state,
+    )
+
+    user_state = global_state["scilifelab_request_quota_guard"]["users"]["user-123"]
+
+    assert user_state["used"] == 1
+    assert user_state["remaining"] == 0
+    assert len(user_state["timestamps"]) == 1
+    assert user_state["timestamps"][0] > old_timestamp
+    assert user_state["last_allowed"] is True

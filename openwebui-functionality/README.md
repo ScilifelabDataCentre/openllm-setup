@@ -5,3 +5,11 @@ This part of the repository contains definitions of additional functionality cre
 - Open WebUI Functions such as Filters, Actions, and Valves
 - Open WebUI Tools
 - etc
+
+## Tests
+
+To run the unit tests:
+```bash
+cd openwebui-functionality
+pytest
+```
