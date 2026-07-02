@@ -8,14 +8,13 @@ version: 0.1
 """
 
 from pydantic import BaseModel, Field
-import time
+import asyncio
 import json
 import logging
-
+import time
 
 logger = logging.getLogger("oi.request_quota_guard")
 logger.setLevel(logging.INFO)
-
 
 class RateLimitExceededError(Exception):
     pass
@@ -40,6 +39,7 @@ class Filter:
 
     def __init__(self):
         self.valves = self.Valves()
+        self.lock = asyncio.Lock()
 
     def log_event(self, event: str, **fields):
         record = {
@@ -105,127 +105,144 @@ class Filter:
         model = self.get_model(body)
         interface = self.get_interface(__metadata__)
 
-        state = self.get_state_root(__global_state__)
+        log_payload = None
+        should_raise = False
 
-        user_state = state["users"].setdefault(
-            user_id,
-            {
-                "timestamps": [],
-                "limit": limit,
-                "used": 0,
-                "remaining": limit,
-                "reset_at": None,
-                "last_checked_at": None,
-                "last_allowed": None,
-                "last_model": None,
-                "last_interface": None,
-            },
-        )
+        async with self.lock:
+            state = self.get_state_root(__global_state__)
 
-        counters = state["counters"].setdefault(
-            user_id,
-            {
-                "requests_attempted": 0,
-                "requests_allowed": 0,
-                "requests_denied": 0,
-            },
-        )
-
-        counters["requests_attempted"] += 1
-
-        # Keep only requests in the current rolling window.
-        timestamps = [
-            timestamp
-            for timestamp in user_state.get("timestamps", [])
-            if now - timestamp < window_seconds
-        ]
-
-        used_before_request = len(timestamps)
-
-        if used_before_request >= limit:
-            counters["requests_denied"] += 1
-
-            reset_at = (
-                min(timestamps) + window_seconds
-                if timestamps
-                else now + window_seconds
+            user_state = state["users"].setdefault(
+                user_id,
+                {
+                    "timestamps": [],
+                    "limit": limit,
+                    "used": 0,
+                    "remaining": limit,
+                    "reset_at": None,
+                    "last_checked_at": None,
+                    "last_allowed": None,
+                    "last_model": None,
+                    "last_interface": None,
+                },
             )
 
-            user_state.update(
+            counters = state["counters"].setdefault(
+                user_id,
                 {
+                    "requests_attempted": 0,
+                    "requests_allowed": 0,
+                    "requests_denied": 0,
+                },
+            )
+
+            counters["requests_attempted"] += 1
+
+            timestamps = [
+                timestamp
+                for timestamp in user_state.get("timestamps", [])
+                if now - timestamp < window_seconds
+            ]
+
+            used_before_request = len(timestamps)
+
+            if used_before_request >= limit:
+                counters["requests_denied"] += 1
+
+                reset_at = (
+                    min(timestamps) + window_seconds
+                    if timestamps
+                    else now + window_seconds
+                )
+
+                user_state.update(
+                    {
+                        **identity,
+                        "timestamps": timestamps,
+                        "limit": limit,
+                        "window_seconds": window_seconds,
+                        "used": used_before_request,
+                        "remaining": 0,
+                        "reset_at": reset_at,
+                        "last_checked_at": now,
+                        "last_allowed": False,
+                        "last_model": model,
+                        "last_interface": interface,
+                    }
+                )
+
+                log_payload = {
+                    "event": "rate_limit_denied",
                     **identity,
-                    "timestamps": timestamps,
+                    "model": model,
+                    "interface": interface,
                     "limit": limit,
-                    "window_seconds": window_seconds,
                     "used": used_before_request,
                     "remaining": 0,
                     "reset_at": reset_at,
-                    "last_checked_at": now,
-                    "last_allowed": False,
-                    "last_model": model,
-                    "last_interface": interface,
+                    "window_seconds": window_seconds,
+                    "counters": dict(counters),
                 }
-            )
 
-            if self.valves.log_denied_requests:
-                self.log_event(
-                    "rate_limit_denied",
-                    **identity,
-                    model=model,
-                    interface=interface,
-                    limit=limit,
-                    used=used_before_request,
-                    remaining=0,
-                    reset_at=reset_at,
-                    window_seconds=window_seconds,
-                    counters=counters,
+                should_raise = True
+
+            else:
+                timestamps.append(now)
+
+                used_after_request = len(timestamps)
+                remaining_after_request = max(limit - used_after_request, 0)
+
+                counters["requests_allowed"] += 1
+
+                reset_at = (
+                    min(timestamps) + window_seconds
+                    if timestamps
+                    else now + window_seconds
                 )
 
+                user_state.update(
+                    {
+                        **identity,
+                        "timestamps": timestamps,
+                        "limit": limit,
+                        "window_seconds": window_seconds,
+                        "used": used_after_request,
+                        "remaining": remaining_after_request,
+                        "reset_at": reset_at,
+                        "last_checked_at": now,
+                        "last_allowed": True,
+                        "last_model": model,
+                        "last_interface": interface,
+                    }
+                )
+
+                log_payload = {
+                    "event": "rate_limit_allowed",
+                    **identity,
+                    "model": model,
+                    "interface": interface,
+                    "limit": limit,
+                    "used": used_after_request,
+                    "remaining": remaining_after_request,
+                    "reset_at": reset_at,
+                    "window_seconds": window_seconds,
+                    "counters": dict(counters),
+                }
+
+                should_raise = False
+
+        # Logging happens outside the lock.
+        if log_payload:
+            event = log_payload.pop("event")
+
+            if event == "rate_limit_allowed" and self.valves.log_allowed_requests:
+                self.log_event(event, **log_payload)
+
+            if event == "rate_limit_denied" and self.valves.log_denied_requests:
+                self.log_event(event, **log_payload)
+
+        if should_raise:
             raise RateLimitExceededError(
                 f"Rate limit exceeded: {limit} requests/minute"
-            )
-
-        # Allow request and record it.
-        timestamps.append(now)
-        used_after_request = len(timestamps)
-        remaining_after_request = max(limit - used_after_request, 0)
-
-        counters["requests_allowed"] += 1
-
-        reset_at = (
-            min(timestamps) + window_seconds
-            if timestamps
-            else now + window_seconds
-        )
-
-        user_state.update(
-            {
-                **identity,
-                "timestamps": timestamps,
-                "limit": limit,
-                "window_seconds": window_seconds,
-                "used": used_after_request,
-                "remaining": remaining_after_request,
-                "reset_at": reset_at,
-                "last_checked_at": now,
-                "last_allowed": True,
-                "last_model": model,
-                "last_interface": interface,
-            }
-        )
-
-        if self.valves.log_allowed_requests:
-            self.log_event(
-                "rate_limit_allowed",
-                **identity,
-                model=model,
-                interface=interface,
-                limit=limit,
-                used=used_after_request,
-                remaining=remaining_after_request,
-                reset_at=reset_at,
-                window_seconds=window_seconds,
-                counters=counters,
             )
 
         return body
