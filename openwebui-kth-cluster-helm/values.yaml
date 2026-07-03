@@ -225,9 +225,9 @@ gateway:
     - openllm.gw.scilifelab-2-prod.sys.kth.se
     - openllm.scilifelab.se
     - open-llm.scilifelab.se
-
-
-
+  listeners:
+    - openllm.scilifelab.se
+    - open-llm.scilifelab.se
 
 networkPolicy:
   enabled: true
