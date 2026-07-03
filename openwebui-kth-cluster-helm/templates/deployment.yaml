@@ -15,7 +15,6 @@ spec:
       labels:
         {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 8 }}
     spec:
-      serviceAccountName: {{ include "openwebui-kth-cluster-helm.serviceAccountName" . }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if or (and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql) (and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled) }}
@@ -45,8 +44,8 @@ spec:
         {{- end }}
         {{- if and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled }}
         - name: wait-for-qdrant
-          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
-          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          image: {{ .Values.webui.image | quote }}
+          imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
           securityContext:
             {{- toYaml .Values.webui.initContainerSecurityContext | nindent 12 }}
           command:
@@ -84,19 +83,26 @@ spec:
       {{- end }}
       containers:
         - name: open-webui
-          image: "{{ .Values.webui.image.repository }}:{{ .Values.webui.image.tag }}"
-          imagePullPolicy: {{ .Values.webui.image.pullPolicy }}
+          image: {{ .Values.webui.image | quote }}
+          imagePullPolicy: {{ .Values.webui.imagePullPolicy }}
           ports:
-            - containerPort: {{ .Values.webui.containerPort }}
+            - containerPort: {{ .Values.webui.port }}
+          {{- $openaiBaseUrls := list }}
+          {{- range .Values.webui.openaiEndpoints }}
+          {{- $openaiBaseUrls = append $openaiBaseUrls .baseUrl }}
+          {{- end }}
           env:
             - name: OLLAMA_BASE_URL
               value: {{ .Values.webui.ollamaBaseUrl | quote }}
-            {{- if .Values.webui.vllm.baseUrl }}
-            - name: OPENAI_API_BASE_URL
-              value: {{ .Values.webui.vllm.baseUrl | quote }}
-            {{- if .Values.webui.vllm.apiKey }}
-            - name: OPENAI_API_KEY
-              value: {{ .Values.webui.vllm.apiKey | quote }}
+            {{- if gt (len $openaiBaseUrls) 0 }}
+            - name: OPENAI_API_BASE_URLS
+              value: {{ join ";" $openaiBaseUrls | quote }}
+            {{- if and .Values.webui.openaiApiKeysSecret.name .Values.webui.openaiApiKeysSecret.key }}
+            - name: OPENAI_API_KEYS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webui.openaiApiKeysSecret.name | quote }}
+                  key: {{ .Values.webui.openaiApiKeysSecret.key | quote }}
             {{- end }}
             {{- end }}
             - name: WEBUI_AUTH
@@ -254,37 +260,9 @@ spec:
           readinessProbe:
             httpGet:
               path: /health
-              port: {{ .Values.webui.containerPort }}
-            initialDelaySeconds: {{ .Values.webui.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.webui.readinessProbe.periodSeconds }}
-        {{- if .Values.tailscale.enabled }}
-        - name: ts-sidecar
-          image: "{{ .Values.tailscale.image.repository }}:{{ .Values.tailscale.image.tag }}"
-          imagePullPolicy: {{ .Values.tailscale.image.pullPolicy }}
-          env:
-            - name: TS_KUBE_SECRET
-              value: {{ .Values.rbac.stateSecretName | quote }}
-            - name: TS_USERSPACE
-              value: {{ .Values.tailscale.env.userspace | quote }}
-            - name: TS_DEBUG_FIREWALL_MODE
-              value: {{ .Values.tailscale.env.debugFirewallMode | quote }}
-            - name: TS_AUTHKEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.tailscale.authSecret.name | quote }}
-                  key: {{ .Values.tailscale.authSecret.key | quote }}
-                  optional: {{ .Values.tailscale.authSecret.optional }}
-            - name: POD_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: POD_UID
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.uid
-          securityContext:
-            {{- toYaml .Values.tailscale.securityContext | nindent 12 }}
-        {{- end }}
+              port: {{ .Values.webui.port }}
+            initialDelaySeconds: {{ .Values.webui.readinessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.readinessPeriodSeconds }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
