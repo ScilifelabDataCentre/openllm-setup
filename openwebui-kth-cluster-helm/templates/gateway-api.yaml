@@ -40,21 +40,21 @@ spec:
     group: gateway.networking.k8s.io
     namespace: gateway
   listeners:
-    {{- range .Values.gateway.listeners }}
-    - name: https
-      hostname: &host {{. | quote}}
+    {{- range $i, $host := .Values.gateway.listeners }}
+    - name: https-{{ $i }}
+      hostname: {{ $host | quote }}
       port: 443
       protocol: HTTPS
       tls:
         certificateRefs:
           - group: ""
             kind: Secret
-            name: *host
+            name: {{ $host | quote }}
         mode: Terminate
     # Necessary for ACME challenge resolution
-    - name: http
-      hostname: *host
+    - name: http-{{ $i }}
+      hostname: {{ $host | quote }}
       port: 80
       protocol: HTTP
-    {{-end}}
+    {{- end }}
 {{- end }}
