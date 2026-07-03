@@ -13,7 +13,6 @@ namespace:
   create: false
   name: openllm
 
-
 networkPolicy:
   # Open WebUI runs in the same namespace on dev-2.
   allowedNamespace: openllm
@@ -26,7 +25,7 @@ gpu:
   # NVIDIA-A40-48C. Each node is one A40 vGPU with a 16 GB profile (16C),
   # time-sliced into 8 schedulable nvidia.com/gpu units ("-SHARED"). A pod
   # requesting 1 GPU shares the 16 GB card with up to 7 others, with no
-  # per-slice memory limit. Four such nodes (32 slots).
+  # per-slice memory limit. Four such nodes (32 slots), so scheduling is easy.
   nodeSelector:
     nvidia.com/gpu.product: NVIDIA-A40-16C-SHARED
   # Taint confirmed on dev-2: nvidia.com/gpu:NoSchedule.
@@ -42,19 +41,22 @@ model:
   gpuMemoryUtilization: "0.30"
 
 # ---------------------------------------------------------------------------
-# Ingress (DISABLED) - was the "prod borrows dev-2 over a public URL" idea.
+# Ingress (DISABLED) - was the "prod borrows dev-2 over an external URL" idea.
 # ---------------------------------------------------------------------------
-# On hold. dev-2's gateway domain (gw.scilifelab-2-dev.sys.kth.se) is INTERNAL
-# to KTH, so the public letsencrypt-prod issuer below cannot validate it; Open
-# WebUI's own cert has been stuck pending for exactly this reason. Do NOT enable
-# until the "GPU on prod" vs "Tailscale bridge" decision is made. If you do
-# enable it later: set enabled: true, uncomment
-# networkPolicy.ingressControllerNamespace above, and expect to swap the issuer
-# for one that works with internal names (DNS-01 or a provided wildcard cert).
+# On hold, and note two points from platform review:
+#   1. Host scheme is <name>.scilifelab-2-dev.sys.kth.se.
+#   2. dev-2 has NO ingress controller; it uses the Gateway API. So this Ingress
+#      resource will NOT route here at all - it would need to be a Gateway API
+#      HTTPRoute instead. (This also explains Open WebUI's stuck cert: an
+#      Ingress-based ACME HTTP-01 solver has nothing to serve it.)
+# Since the direction is now "add a GPU to prod-2" rather than a cross-cluster
+# bridge, this stays disabled. If the bridge is ever revived, convert this to an
+# HTTPRoute (needs the Gateway name/namespace/listener) and handle TLS via the
+# platform's method for internal names, not public letsencrypt-prod.
 ingress:
   enabled: false
   className: nginx
-  host: embeddings.gw.scilifelab-2-dev.sys.kth.se
+  host: embeddings.scilifelab-2-dev.sys.kth.se
   path: /
   pathType: Prefix
   tls:
