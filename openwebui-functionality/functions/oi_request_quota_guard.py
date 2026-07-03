@@ -15,6 +15,7 @@ import time
 
 logger = logging.getLogger("oi.request_quota_guard")
 logger.setLevel(logging.INFO)
+FALLBACK_GLOBAL_STATE = {}
 
 class RateLimitExceededError(Exception):
     pass
@@ -65,7 +66,17 @@ class Filter:
 
     def get_interface(self, __metadata__: dict):
         __metadata__ = __metadata__ or {}
-        return __metadata__.get("interface")
+
+        interface = __metadata__.get("interface")
+        if interface:
+            return interface
+
+        # Fallback: requests with a chat context are from the WebUI
+        if __metadata__.get("chat_id"):
+            return "open-webui"
+
+        # Unknown (likely direct API, but not certain)
+        return "unknown"
 
     def get_state_root(self, __global_state__: dict) -> dict:
         """
@@ -94,7 +105,7 @@ class Filter:
 
         if __global_state__ is None:
             # Fallback safety. The filter can still run, but state will not be shared.
-            __global_state__ = {}
+            __global_state__ = FALLBACK_GLOBAL_STATE
 
         now = time.time()
         window_seconds = 60
