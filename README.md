@@ -5,12 +5,13 @@
 This repository contains setup files and scripts for multiple deployment targets (services) that make up the SciLifeLab Open LLM service, including:
 
 - The main Open WebUI deployment (on KTH production cluster)
+- Open WebUI addon functionality definitions as OI Function filters, actions, valves, etc
 - A vLLM service (on KTH cluster)
 - A vLLM service (on SafeSpring using an H100 GPU)
 
 ## Directory structure
 
-Deployment folder names follow the below template names: {what deployed}-{optional nr}-{where deployed}-{how deployed}
+Deployment folder names follow the below template names: {what deployed}-{optional nr}-{where deployed}-{how deployed}. This convention is followed for normal cluster deployment objects but not for other components such as python code and scripts to be installed or created via the Open WebUI application.
 
 ```
 /openllm-setup
