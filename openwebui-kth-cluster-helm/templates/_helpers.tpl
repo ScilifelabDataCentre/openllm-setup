@@ -54,14 +54,6 @@ app.kubernetes.io/name: qdrant
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
-{{- define "openwebui-kth-cluster-helm.serviceAccountName" -}}
-{{- if .Values.serviceAccount.create -}}
-{{- default (printf "%s-tailscale" (include "openwebui-kth-cluster-helm.fullname" .)) .Values.serviceAccount.name -}}
-{{- else -}}
-{{- .Values.serviceAccount.name -}}
-{{- end -}}
-{{- end -}}
-
 {{- define "openwebui-kth-cluster-helm.pvcName" -}}
 {{- if .Values.persistence.existingClaim -}}
 {{- .Values.persistence.existingClaim -}}

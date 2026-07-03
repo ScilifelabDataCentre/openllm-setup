@@ -3,7 +3,6 @@
 This chart deploys Open WebUI with:
 
 - a persistent volume for application data
-- a privileged Tailscale sidecar for tailnet access
 - Open WebUI configured to reach a remote Ollama endpoint
 - an optional bundled PostgreSQL dependency for the primary application database
 - a bundled Qdrant service as the default vector database backend
@@ -15,15 +14,13 @@ This chart deploys Open WebUI with:
 
 The chart defaults currently include:
 
-- namespace: `llm-stack`
+- namespace: `openllm`
 - release object name: `open-webui`
-- Open WebUI image: `ghcr.io/open-webui/open-webui:main`
-- Ollama URL: `http://100.111.61.121:11434`
-- vLLM URL: `http://vllm.example.com:8000/v1`
-- service account: `open-webui-tailscale`
-- tailscale state secret: `open-webui-tailscale-state`
+- Open WebUI image: `ghcr.io/scilifelabdatacentre/open-webui:git-5c3b3dd`
+- Ollama URL: `set-to-your-ollama-url`
+- vLLM endpoints: none configured
 - persistence: enabled, `ReadWriteOnce`, `5Gi`
-- ingress host: `open-webui.localhost`
+- gateway hostnames: `["openllm.scilifelab-2-dev.sys.kth.se"]`
 
 For this deployment, Open WebUI images are built in `https://github.com/ScilifelabDataCentre/open-webui`.
 The image artifacts are published under `ghcr.io/scilifelabdatacentre/open-webui:main`.
@@ -126,16 +123,19 @@ Open WebUI also waits for the bundled Qdrant service before starting, so first b
 
 ## External vLLM
 
-To point Open WebUI at an external vLLM endpoint, set the OpenAI-compatible base URL under `webui.vllm`:
+To point Open WebUI at one or more external vLLM deployments, set the OpenAI-compatible endpoints under `webui`:
 
 ```yaml
 webui:
-  vllm:
-    baseUrl: http://your-vllm-host:8000/v1
-    apiKey: ""
+  openaiEndpoints:
+    - baseUrl: http://your-vllm-host-1:8000/v1
+    - baseUrl: http://your-vllm-host-2:8000/v1
+  openaiApiKeysSecret:
+    name: open-webui-openai
+    key: api-keys
 ```
 
-If your vLLM endpoint requires authentication, set `webui.vllm.apiKey`.
+If any endpoint requires authentication, store the semicolon-delimited key list in a Kubernetes Secret and point `webui.openaiApiKeysSecret` at it. The key order must match `webui.openaiEndpoints`. The chart renders these as `OPENAI_API_BASE_URLS` and `OPENAI_API_KEYS`, matching upstream Open WebUI behavior.
 
 ## ArgoCD deployment
 
@@ -169,7 +169,7 @@ helm upgrade --install open-webui ./openwebui-kth-cluster-helm \
   -f ./openwebui-kth-cluster-helm/values-local.yaml
 ```
 
-Keep secrets and local-only overrides in `values-local.yaml`, which is gitignored. This includes `webui.secretKey`, `database.url`, `redis.url`, and any non-empty `webui.vllm.apiKey`.
+Keep secrets and local-only overrides in `values-local.yaml`, which is gitignored. This includes `database.url`, `redis.url`, and secret references such as `webui.openaiApiKeysSecret`.
 
 ## Values overview
 
@@ -177,51 +177,29 @@ The main configuration sections in [values.yaml](/Users/nikch187/Projects/sll/op
 
 - `namespace`: namespace creation, name, and annotations
 - `nameOverride` and `fullnameOverride`: release naming
-- `serviceAccount`: ServiceAccount creation and name
-- `rbac`: Role/RoleBinding creation and the Tailscale state secret name
 - `persistence`: PVC creation, access mode, size, or reuse of an existing claim
 - `podSecurityContext`: pod-level security settings for the workload
-- `webui`: image, ports, Ollama URL, vLLM URL, auth, secret key, resources, probes, and extra env vars
+- `webui`: image, port, Ollama URL, OpenAI-compatible API settings, auth, resources, probes, and extra env vars
 - `database`: external database URL, migration control, connection pool tuning, and SQLite fallback tuning
 - `postgresql`: bundled Bitnami PostgreSQL dependency configuration for the primary application database
 - `redis`: Redis URL and connection behavior for multi-user or future multi-replica setups
 - `vectorDatabase`: vector backend selection, bundled Qdrant deployment, auth, and tuning
-- `tailscale`: sidecar enablement, image, auth secret, env, and security context
 - `service`: Kubernetes Service type and ports
-- `ingress`: ingress enablement, class, annotations, and hosts
+- `gateway`: Gateway API host routing
 - `networkPolicy`: egress policy enablement for the deployment pods
 - `tmpVolume`: `/tmp` emptyDir mount enablement
 - `staticVolume`: writable `/app/backend/open_webui/static` mount for non-root deployments
 
-## Tailscale auth secret
-
-The Tailscale sidecar reads `TS_AUTHKEY` from a secret named `tailscale-auth`.
-
-If `tailscale.authSecret.value` is set, the chart creates that Secret for you. The intended place for that value is `values-local.yaml`:
-
-```yaml
-tailscale:
-  authSecret:
-    value: tskey-auth-xxxxxxxx
-```
-
-If you prefer managing the Secret outside the chart, leave `tailscale.authSecret.value` empty and create it manually:
-
-```bash
-kubectl -n llm-stack create secret generic tailscale-auth \
-  --from-literal=TS_AUTHKEY=tskey-auth-xxxxxxxx
-```
-
-Override `webui.secretKey` before production use. If your external vLLM endpoint requires authentication, also set `webui.vllm.apiKey`.
+Manage `WEBUI_SECRET_KEY` in the `openllm-secrets` Secret before production use. If any external vLLM endpoint requires authentication, also provide `webui.openaiApiKeysSecret`.
 
 If you scale beyond one pod, also ensure:
 
 - `database.url` points to PostgreSQL, not SQLite
 - `redis.url` is set
-- `webui.secretKey` is identical across replicas
+- `WEBUI_SECRET_KEY` is identical across replicas
 
 The bundled PostgreSQL dependency is only for the main relational database in this chart. Vector storage uses the bundled Qdrant service by default.
 
 ## Network policy
 
-If the cluster uses default-deny egress, keep `networkPolicy.enabled: true` so the Open WebUI pod and Tailscale sidecar are allowed to make outbound connections.
+If the cluster uses default-deny egress, keep `networkPolicy.enabled: true` so the Open WebUI pod is allowed to make outbound connections.
