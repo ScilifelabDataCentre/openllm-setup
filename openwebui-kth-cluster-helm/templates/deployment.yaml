@@ -263,6 +263,12 @@ spec:
               port: {{ .Values.webui.port }}
             initialDelaySeconds: {{ .Values.webui.readinessInitialDelaySeconds }}
             periodSeconds: {{ .Values.webui.readinessPeriodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: {{ .Values.webui.port }}
+            initialDelaySeconds: {{ .Values.webui.livenessInitialDelaySeconds }}
+            periodSeconds: {{ .Values.webui.livenessPeriodSeconds }}
       volumes:
         - name: data
           {{- if .Values.persistence.enabled }}
