@@ -45,7 +45,7 @@ webui:
   authEnabled: true
   home: /tmp
   secretKey: "replace-with-secure-random-string"
-  corsAllowOrigin: "https://openllm.scilifelab-2-dev.sys.kth.se"
+  corsAllowOrigin: "https://openllm.gw.scilifelab-2-prod.sys.kth.se,https://openllm.scilifelab.se,https://open-llm.scilifelab.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
   enableRealtimeChatSave: false
   enableBaseModelsCache: true
@@ -262,10 +262,9 @@ gateway:
     cert-manager.io/cluster-issuer: letsencrypt-prod
   secretName: open-llm-tls
   hosts:
-    - host: openllm.scilifelab-2-dev.sys.kth.se
-      paths:
-        - path: /
-          pathType: Prefix
+    - host: openllm.gw.scilifelab-2-prod.sys.kth.se
+    - host: openllm.scilifelab.se
+    - host: open-llm.scilifelab.se
 
 
 networkPolicy:
