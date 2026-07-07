@@ -1,19 +1,9 @@
 namespace:
-  create: true
-  name: llm-stack
-  annotations:
-    argocd.argoproj.io/sync-wave: "-2"
+  create: false
+  name: openllm
 
 nameOverride: ""
 fullnameOverride: open-webui
-
-serviceAccount:
-  create: true
-  name: tailscale
-
-rbac:
-  create: true
-  stateSecretName: open-webui-tailscale-state
 
 persistence:
   enabled: true
@@ -32,20 +22,18 @@ podSecurityContext:
 
 webui:
   replicaCount: 1
-  image:
-    repository: ghcr.io/open-webui/open-webui
-    tag: main
-    pullPolicy: IfNotPresent
-  containerPort: 8080
+  image: ghcr.io/scilifelabdatacentre/open-webui:git-5c3b3dd
+  imagePullPolicy: IfNotPresent
+  port: 8080
   uvicornWorkers: 1
   ollamaBaseUrl: "set-to-your-ollama-url"
-  vllm:
-    baseUrl: ""
-    apiKey: ""
+  openaiEndpoints: []
+  openaiApiKeysSecret:
+    name: ""
+    key: ""
   authEnabled: true
   home: /tmp
-  secretKey: "replace-with-secure-random-string"
-  corsAllowOrigin: "https://open-llm.scilifelab.se;https://openllm.scilifelab.se"
+  corsAllowOrigin: "https://openllm.gw.scilifelab-2-prod.sys.kth.se,https://openllm.scilifelab.se,https://open-llm.scilifelab.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
   enableRealtimeChatSave: false
   enableBaseModelsCache: true
@@ -66,9 +54,15 @@ webui:
       drop:
         - ALL
     readOnlyRootFilesystem: false
-  readinessProbe:
-    initialDelaySeconds: 15
-    periodSeconds: 10
+  initContainerSecurityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+  readinessInitialDelaySeconds: 15
+  readinessPeriodSeconds: 10
+  livenessInitialDelaySeconds: 30
+  livenessPeriodSeconds: 20
   extraEnv: []
 
 docs:
@@ -76,18 +70,25 @@ docs:
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: latest
+    tag: sha-ccb4818
     pullPolicy: IfNotPresent
-  containerPort: 80
+  containerPort: 8080
   service:
-    port: 80
-  ingress:
-    pathType: Prefix
+    port: 8080
+  gateway:
     paths:
       - path: /use-policy
       - path: /guides
-  podSecurityContext: {}
-  securityContext: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
   resources: {}
   readinessProbe:
     path: /
@@ -155,6 +156,8 @@ vectorDatabase:
         memory: 2Gi
     podSecurityContext:
       fsGroup: 1000
+      seccompProfile:
+        type: RuntimeDefault
     securityContext:
       runAsNonRoot: true
       runAsUser: 1000
@@ -213,48 +216,19 @@ postgresql:
         cpu: "2"
         memory: 2Gi
 
-tailscale:
-  enabled: true
-  image:
-    repository: ghcr.io/tailscale/tailscale
-    tag: latest
-    pullPolicy: Always
-  authSecret:
-    name: tailscale-auth
-    key: TS_AUTHKEY
-    optional: true
-    value: ""
-  env:
-    userspace: "false"
-    debugFirewallMode: auto
-  securityContext:
-    privileged: true
-    runAsUser: 0
-    runAsGroup: 0
-    runAsNonRoot: false
-
 service:
   type: ClusterIP
   port: 8080
-  targetPort: 8080
 
-ingress:
+gateway:
   enabled: true
-  className: nginx
-  annotations:
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-  secretName: open-llm-tls
-  hosts:
-    - host: open-llm.scilifelab.se
-      paths:
-        - path: /
-          pathType: Prefix
-    - host: openllm.scilifelab.se
-      paths:
-        - path: /
-          pathType: Prefix
+  hostnames:
+    - openllm.gw.scilifelab-2-prod.sys.kth.se
+    - openllm.scilifelab.se
+    - open-llm.scilifelab.se
+  listeners:
+    - openllm.scilifelab.se
+    - open-llm.scilifelab.se
 
 networkPolicy:
   enabled: true
