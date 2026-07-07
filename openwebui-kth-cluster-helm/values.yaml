@@ -64,11 +64,11 @@ webui:
   extraEnv: []
 
 docs:
-  enabled: false
+  enabled: true
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: sha-eefbc5f
+    tag: sha-5d6ba5e
     pullPolicy: IfNotPresent
   containerPort: 8080
   service:
