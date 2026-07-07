@@ -16,6 +16,17 @@ spec:
       namespace: gateway
       port: 443
   rules:
+    {{- if and .Values.docs.enabled .Values.docs.gateway.paths }}
+    {{- range .Values.docs.gateway.paths }}
+    - matches:
+      - path:
+          type: {{ default "PathPrefix" .type }}
+          value: {{ .path | quote }}
+      backendRefs:
+      - name: {{ include "openwebui-kth-cluster-helm.docsName" $ | quote }}
+        port: {{ $.Values.docs.service.port }}
+    {{- end }}
+    {{- end }}
     - backendRefs:
       - name: {{ include "openwebui-kth-cluster-helm.fullname" . | quote }}
         port: {{ .Values.service.port }}
