@@ -17,6 +17,16 @@ which must be updated when new control plane nodes are created, e.g. after a mai
 Using the Rancher proxy URL would have given a stable address,
 but authenticating with a downstream service account is currently disabled.
 
+# Viewing the logs
+
+First, log in to `https://grafana.serve-dev.scilifelab.se` and choose the Loki data source.
+
+To see all logs, use the label filter `app_kubernetes_io_instance=openllm`.
+
+To see logs from individual component, use the `service_name` label filter,
+that matches the `app.kubernetes.io/name` Pod label. Example: `service_name=openwebui-kth-cluster-helm`.
+
+
 # Installation
 
 1. Install the RBAC resources on `scilifelab-2-prod`, allowing to discover pods and stream logs.
