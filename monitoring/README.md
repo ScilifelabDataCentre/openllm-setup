@@ -6,7 +6,7 @@ This is meant as a temporary workaround, until an observability stack is availab
 
 ## General idea
 
-Alloy discovers `openllm` pods through the `scilifelab-2-prod` API server, and streams their logs to Loki.
+Alloy discovers `openllm` pods through the `scilifelab-2-prod` API server, and streams their logs to Loki running on `scilifelab-1-dev`.
 
 Authentication is performed through a bearer token for the `monitoring` service account,
 installed in the `openllm` namespace on `scilifelab-2-prod` with suitable permissions (see [rbac](./rbac))
@@ -49,7 +49,7 @@ Alternatively, set the environment variables `OPENLLM_K8S_TOKEN` and `OPENLLM_K8
 ```
 export OPENLLM_K8S_TOKEN=<token>
 export OPENLLM_K8S_APISERVER=<node IP>
-./helpers.sh rotate
+./helpers.sh rotate_token
 ```
 
 Finally, apply the updated sealed secret and resart Alloy:
