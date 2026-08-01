@@ -1,0 +1,31 @@
+version: '3'
+services:
+  loki:
+    image: grafana/loki:3.0.0
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+  alloy:
+    image: grafana/alloy:${ALLOY_TAG:-v1.17.1}
+    environment:
+      - OPENLLM_LOKI_URL=http://loki:3100/loki/api/v1/push
+      - OPENLLM_K8S_APISERVER
+      - OPENLLM_K8S_TOKEN
+    command:
+      - run
+      - --stability.level=experimental
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    volumes:
+      - "../files/config.alloy:/etc/alloy/config.alloy:Z"
+    ports:
+      - "12345:12345"
+  grafana:
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - "./datasources.yaml:/etc/grafana/provisioning/datasources/ds.yaml:Z"
+    image: grafana/grafana:${GRAFANA_TAG:-11.0.0}
+    ports:
+      - "3000:3000"
