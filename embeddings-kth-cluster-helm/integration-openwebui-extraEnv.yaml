@@ -1,0 +1,35 @@
+# -----------------------------------------------------------------------------
+# Wire Open WebUI's RAG to this embedding backend.
+#
+# Add the block below to the `webui.extraEnv` list in the EXISTING
+# openwebui-kth-cluster-helm values (or in the OPEN-LLM-DEV ArgoCD app's Helm
+# `values:` override). The chart already passes webui.extraEnv straight through
+# to the Open WebUI container, so no chart changes are needed.
+#
+# These are the RAG-specific OpenAI variables. They are separate from the chat
+# OPENAI_API_BASE_URL / OPENAI_API_KEY, so the chat connection is untouched.
+#
+# Adjust the URL if you deploy the embedding service into a different namespace:
+#   http://<service>.<namespace>.svc.cluster.local:<port>/v1
+# With the defaults in this chart the service is "embeddings" on port 8000.
+# -----------------------------------------------------------------------------
+webui:
+  extraEnv:
+    - name: RAG_EMBEDDING_ENGINE
+      value: "openai"
+    - name: RAG_EMBEDDING_MODEL
+      value: "bge-m3"            # must equal model.servedName in the embedding chart
+    - name: RAG_OPENAI_API_BASE_URL
+      value: "http://embeddings.llm-embeddings.svc.cluster.local:8000/v1"
+    # Simplest (matches current practice of inline values, flagged for SealedSecrets):
+    - name: RAG_OPENAI_API_KEY
+      value: "replace-with-the-same-embedding-api-key"
+    # Preferred once the key exists as a Secret IN THE OPEN WEBUI NAMESPACE:
+    # - name: RAG_OPENAI_API_KEY
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: embeddings-api-key
+    #       key: api-key
+    # Optional: how many chunks Open WebUI embeds per request.
+    - name: RAG_EMBEDDING_BATCH_SIZE
+      value: "100"
