@@ -1,0 +1,71 @@
+{{- if .Values.gateway.enabled }}
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+spec:
+  hostnames:
+    {{- range .Values.gateway.hostnames }}
+    - {{ . | quote }}
+    {{- end }}
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: default
+      namespace: gateway
+      port: 443
+    - group: gateway.networking.k8s.io
+      kind: ListenerSet
+      name: {{ include "openwebui-kth-cluster-helm.fullname" . }}-listener
+      namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+      port: 443
+  rules:
+    {{- if and .Values.docs.enabled .Values.docs.gateway.paths }}
+    {{- range .Values.docs.gateway.paths }}
+    - matches:
+      - path:
+          type: {{ default "PathPrefix" .type }}
+          value: {{ .path | quote }}
+      backendRefs:
+      - name: {{ include "openwebui-kth-cluster-helm.docsName" $ | quote }}
+        port: {{ $.Values.docs.service.port }}
+    {{- end }}
+    {{- end }}
+    - backendRefs:
+      - name: {{ include "openwebui-kth-cluster-helm.fullname" . | quote }}
+        port: {{ .Values.service.port }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.fullname" . }}-listener
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  annotations:
+    # Enables automated TLS certificate creation and renewal by cert-manager
+    cert-manager.io/cluster-issuer: letsencrypt-prod-gapi
+spec:
+  parentRef:
+    name: default
+    kind: Gateway
+    group: gateway.networking.k8s.io
+    namespace: gateway
+  listeners:
+    {{- range $i, $host := .Values.gateway.listeners }}
+    - name: https-{{ $i }}
+      hostname: {{ $host | quote }}
+      port: 443
+      protocol: HTTPS
+      tls:
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: {{ $host | quote }}
+        mode: Terminate
+    # Necessary for ACME challenge resolution
+    - name: http-{{ $i }}
+      hostname: {{ $host | quote }}
+      port: 80
+      protocol: HTTP
+    {{- end }}
+{{- end }}

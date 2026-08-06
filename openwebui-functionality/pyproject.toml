@@ -1,0 +1,18 @@
+[project]
+name = "openwebui-functionality"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "pydantic",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-asyncio",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
