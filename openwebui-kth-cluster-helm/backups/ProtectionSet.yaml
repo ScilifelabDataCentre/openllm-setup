@@ -1,0 +1,14 @@
+---
+apiVersion: apps.kupr.rubrik.com/v1alpha1
+kind: ProtectionSet
+metadata:
+  name: app-backup
+spec:
+  filter:
+    includeClusterScopedResources: true
+    includes:
+      - resource: persistentvolumeclaims
+        selectors:
+          matchLabels:
+            storage: postgresql-backup
+  slaDomainUuid: 650f7b5b-d1bd-4257-99f9-4e75dbeae528 # k1h-standard

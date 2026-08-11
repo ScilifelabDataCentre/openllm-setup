@@ -1,0 +1,72 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup
+spec:
+  schedule: "0 19 * * *" # 19:00 every day, so it's complete before 21:00 when Rubrik runs.
+  timeZone: Europe/Stockholm
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: Never
+          containers:
+            - name: pgdump
+              image: postgres:18-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - /backup-scripts/backup-postgresql.sh
+              resources:
+                limits:
+                  cpu: 500m
+                  memory: 2Gi
+                  ephemeral-storage: 500Mi
+                requests:
+                  cpu: 500m
+                  memory: 2Gi
+                  ephemeral-storage: 20Mi
+              env:
+                - name: BACKUP_DIR
+                  value: /backups
+                - name: PGHOST
+                  value: open-webui-postgresql
+                - name: PGUSER
+                  value: openwebui
+                - name: PGDATABASE
+                  value: openwebui
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: open-webui-postgresql
+                      key: password
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+                  subPath: postgres
+                - name: backup-scripts
+                  readOnly: true
+                  mountPath: /backup-scripts
+              securityContext:
+                allowPrivilegeEscalation: false
+                privileged: false
+                runAsNonRoot: true
+                runAsUser: 70
+                runAsGroup: 70
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: postgresql-backup
+            - name: backup-scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0550 # r-xr-x---
