@@ -46,6 +46,9 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+litellm.env
+*.env
+!*.env.example
 
 # pyenv
 .python-version
