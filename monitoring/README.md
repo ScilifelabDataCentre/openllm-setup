@@ -52,7 +52,7 @@ export OPENLLM_K8S_APISERVER=<node IP>
 ./helpers.sh rotate_token
 ```
 
-Finally, apply the updated sealed secret and resart Alloy:
+Finally, apply the updated sealed secret and restart Alloy:
 ```
 kubectl apply -f resources/token.ss.yaml
 kubectl rollout restart deploy alloy-openllm-logs
@@ -60,7 +60,7 @@ kubectl rollout restart deploy alloy-openllm-logs
 
 # Tweaking and debugging
 
-Edit the [Alloy configuration](./files/config.alloy), following the the excellent [documentation](https://grafana.com/docs/alloy/latest/)
+Edit the [Alloy configuration](./files/config.alloy), following the excellent [documentation](https://grafana.com/docs/alloy/latest/)
 
 I recommend debugging locally using the provided [compose file](./debug/docker-compose.yaml):
 ```
