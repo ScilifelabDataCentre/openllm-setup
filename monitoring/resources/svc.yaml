@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  creationTimestamp: null
+  name: alloy-openllm-logs
+spec:
+  ports:
+  - port: 12345
+    protocol: TCP
+    targetPort: 12345
+  selector:
+    app.kubernetes.io/name: alloy-openllm-logs
+status:
+  loadBalancer: {}

@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+ - resources
+
+configMapGenerator:
+- name: alloy-config
+  namespace: loki-stack
+  files:
+    - files/config.alloy
+  options:
+    disableNameSuffixHash: true
