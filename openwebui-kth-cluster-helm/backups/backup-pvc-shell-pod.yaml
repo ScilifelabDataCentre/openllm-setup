@@ -1,0 +1,47 @@
+---
+# Standalone helper pod for inspecting or copying files from the backup PVC.
+# Apply only when needed:
+#   kubectl apply -f backup-pvc-shell-pod.yaml
+# Then connect with:
+#   kubectl -n openllm exec -it pod/postgresql-backup-shell -- /bin/sh
+apiVersion: v1
+kind: Pod
+metadata:
+  name: postgresql-backup-shell
+  namespace: openllm
+spec:
+  restartPolicy: Never
+  securityContext:
+    fsGroup: 70
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: shell
+      image: postgres:18-alpine
+      imagePullPolicy: IfNotPresent
+      command:
+        - /bin/sh
+        - -c
+        - sleep infinity
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+          ephemeral-storage: 20Mi
+      securityContext:
+        allowPrivilegeEscalation: false
+        privileged: false
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        capabilities:
+          drop:
+            - ALL
+      volumeMounts:
+        - name: backup-storage
+          mountPath: /backups
+          subPath: postgres
+  volumes:
+    - name: backup-storage
+      persistentVolumeClaim:
+        claimName: postgresql-backup
