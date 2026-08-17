@@ -23,7 +23,7 @@ traffic runs over TCP.
 | Machine | Checkout | Used for |
 |---|---|---|
 | any compute node | `/mimer/NOBACKUP/sll_dc/openllm-setup/vllm-03-c3se-podman` | shared by all five nodes, so they cannot drift |
-| `sll-login` | `~/openllm-setup/vllm-03-c3se-podman` | its own clone; only `proxy/` matters here |
+| `sll-login` | `home/llm//openllm-setup/vllm-03-c3se-podman` | its own clone; only `proxy/` matters here |
 
 Pull both when a change affects each side.
 
