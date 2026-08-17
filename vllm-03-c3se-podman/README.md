@@ -50,7 +50,7 @@ enforces it and will refuse to start when a node is already taken.
 - [Troubleshooting](#troubleshooting)
 - [Data you cannot recreate](#data-you-cannot-recreate)
 - [Transport status: why RDMA is off](#transport-status-why-rdma-is-off)
-- [Settings that look incidental and are not](#settings-that-look-incidental-and-are-not)
+- [Important Settings](#important-settings)
 - [Open items](#open-items) &middot; [Secrets](#secrets)
 
 ---
