@@ -37,7 +37,7 @@ enforces it and will refuse to start when a node is already taken.
 
 ## Contents
 
-- [Setup, once per host](#setup-once-per-host)
+- [Setup](#setup)
 - Tasks: [single-node model](#deploy-a-single-node-model) &middot;
   [multi-node model](#deploy-a-multi-node-model) &middot;
   [register in the proxy](#register-a-model-in-the-proxy-login-node-only) &middot;
@@ -56,7 +56,7 @@ enforces it and will refuse to start when a node is already taken.
 
 ---
 
-# Setup, once per host
+# Setup
 
 ## Prerequisites
 
