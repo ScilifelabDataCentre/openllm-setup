@@ -51,7 +51,8 @@ enforces it and will refuse to start when a node is already taken.
 - [Important Data](#important-data)
 - [Transport status: why RDMA is off](#transport-status-why-rdma-is-off)
 - [Important Settings](#important-settings)
-- [Open items](#open-items) &middot; [Secrets](#secrets)
+- [Open items](#open-items)
+- [Secrets](#secrets)
 
 ---
 
