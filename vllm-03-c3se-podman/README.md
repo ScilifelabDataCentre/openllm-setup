@@ -48,7 +48,7 @@ enforces it and will refuse to start when a node is already taken.
   [node allocation](#node-allocation) &middot; [pinned versions](#pinned-versions) &middot;
   [reading bootstrap output](#reading-bootstrapsh-output)
 - [Troubleshooting](#troubleshooting)
-- [Data you cannot recreate](#data-you-cannot-recreate)
+- [Important Data](#important-data)
 - [Transport status: why RDMA is off](#transport-status-why-rdma-is-off)
 - [Important Settings](#important-settings)
 - [Open items](#open-items) &middot; [Secrets](#secrets)
@@ -605,7 +605,7 @@ daemon instead. The two can differ by orders of magnitude, and on these nodes th
 
 ---
 
-# Data you cannot recreate
+# Important Data
 
 | Item | If lost | Recoverable from |
 |---|---|---|
