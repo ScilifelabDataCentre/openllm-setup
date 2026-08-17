@@ -136,9 +136,7 @@ systemctl --user start vllm@qwen3-32b
 ```
 
 **1. Check the node is free.** Against the [allocation table](#node-allocation), and
-on the node itself. Include a check for hand-started containers, which is not
-paranoia: a container named `compassionate_tesla` sat on node 38 for five weeks
-holding port 8000 and serving nothing.
+on the node itself.
 
 ```bash
 systemctl --user list-units 'vllm@*' 'vllm-multinode@*' --no-legend
