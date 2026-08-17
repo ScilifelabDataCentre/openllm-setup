@@ -52,3 +52,8 @@ litellm.env
 
 # pyenv
 .python-version
+
+# Local artefacts that are built or downloaded rather than committed.
+*.tar
+images/
+

@@ -1,0 +1,32 @@
+# Postgres backing store for LiteLLM virtual keys / spend.
+# Path on host: ~/.config/systemd/user/litellm-postgres.service  (login node sll-login)
+# --shm-size and dynamic_shared_memory_type=mmap are REQUIRED: Podman's default /dev/shm
+# is too small, without them every Postgres query fails on shared memory.
+[Unit]
+Description=Postgres for LiteLLM
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+# NOTE: this path is per USER, not per container, and litellm and
+# litellm-postgres both run under llm on this node at the same time. Restarting
+# one therefore clears podman runtime state belonging to the other. It has been
+# in place since the original setup and is left as-is here, but it is a candidate
+# cause of the podman crash-loop documented in the README. Do not copy this
+# pattern to new units without checking whether they can run alongside others.
+ExecStartPre=-/usr/bin/rm -rf /tmp/storage-run-%U/containers /tmp/storage-run-%U/libpod/tmp
+ExecStartPre=-/usr/bin/podman rm -f litellm-postgres
+ExecStart=/usr/bin/podman run --rm --name litellm-postgres --net host \
+    --shm-size=256m \
+    --env-file %h/litellm.env \
+    -v litellm-pg-data:/var/lib/postgresql/data \
+    docker.io/library/postgres:16 \
+    -c dynamic_shared_memory_type=mmap
+ExecStop=/usr/bin/podman stop litellm-postgres
+
+[Install]
+WantedBy=default.target
