@@ -715,10 +715,5 @@ podman logs vllm-multinode-<name> 2>&1 | grep -E 'GDR [01]|PXN [0-9]'  # what NC
 
 # Secrets
 
-Never commit `~/litellm.env` or any filled-in env file; see `.gitignore`. The master
-key, the DB password, the HuggingFace token and all issued scoped keys should live in
+The master key, the DB password, the HuggingFace token and all issued scoped keys should live in
 Bitwarden.
-
-```bash
-ls -l ~/litellm.env      # want -rw------- and owner llm
-```
