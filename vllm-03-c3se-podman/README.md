@@ -43,7 +43,7 @@ enforces it and will refuse to start when a node is already taken.
   [register in the proxy](#register-a-model-in-the-proxy-login-node-only) &middot;
   [add a node](#add-a-node-to-a-multi-node-deployment) &middot;
   [change a setting](#change-a-setting) &middot;
-  [stop something](#stop-something)
+  [stop deployment](#stop-deployment)
 - Reference: [layout](#layout) &middot; [host paths](#host-paths) &middot;
   [node allocation](#node-allocation) &middot; [pinned versions](#pinned-versions) &middot;
   [reading bootstrap output](#reading-bootstrapsh-output)
@@ -391,7 +391,7 @@ a full weight reload, 5 to 20 minutes.
 
 ---
 
-# Stop something
+# Stop deployment
 
 ## Single node
 
