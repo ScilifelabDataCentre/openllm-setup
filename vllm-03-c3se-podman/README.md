@@ -5,7 +5,7 @@ LiteLLM proxy. Change files here, commit,
 pull on the hosts, restart. Never edit a host directly.
 
 > [!Note]
-> Add a new model to the `Current state` table if you've added a new one
+> Add a new model to the `Current state` and `Node allocation` tables if you've added a new one.
 
 ## Current state
 
