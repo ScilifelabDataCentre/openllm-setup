@@ -4,6 +4,9 @@ vLLM inference backend for the OpenLLM pilot, on Chalmers C3SE A100 nodes, behin
 LiteLLM proxy. Change files here, commit,
 pull on the hosts, restart. Never edit a host directly.
 
+> [!Note]
+> Add a new model to the `Current state` table if you've added a new one
+
 ## Current state
 
 | What | Where | Status |
@@ -12,6 +15,52 @@ pull on the hosts, restart. Never edit a host directly.
 | `Qwen3-235B-A22B` multi-node | `sll-m11-41` (head, `:8000`) + `sll-m11-42` | running, TCP transport |
 | `Qwen/Qwn3-32B` single-node | `sll-m11-38` | running |
 | Public endpoint | `https://scilifelab-ai.c3se.chalmers.se/v1` | via nginx/TLS to Open WebUI |
+
+## Node allocation
+
+**There is no scheduler.** Keep this table current, in the same commit as any change
+to a node list.
+
+| Node | Assigned to | Since |
+|---|---|---|
+| `sll-m11-38` | single-node `Qwen3-32B`** (serves `:8000`)| 2026-08-17 |
+| `sll-m11-39` | free | |
+| `sll-m11-40` | free | |
+| `sll-m11-41` | **multi-node `qwen3-235b`** (head, serves `:8000`) | 2026-08-17 |
+| `sll-m11-42` | **multi-node `qwen3-235b`** (worker) | 2026-08-17 |
+
+A multi-node deployment claims all four GPUs at 0.90 utilization, so nothing
+meaningful is left for a second model. Sharing produces an out-of-memory error on one
+rank, surfaced as a NCCL error reported by the others, several screens from the cause.
+
+`node-free-check.sh` (See [layout](#layout)) enforces this, matching on the container **image** as well as the
+name so a hand-started container counts too. `ALLOW_SHARED_NODE=1` in a conf overrides
+it. It deliberately does not check `nvidia-smi`, because a fast restart races with
+memory still being released and a guard that false-positives gets deleted.
+
+`bootstrap.sh` (See [layout](#layout)) installs every model conf on every compute node, since a conf that is
+never started does nothing. **A conf being present is not permission to start it.**
+This table is.
+
+## Layout
+
+```
+proxy/                          # login node only
+  litellm.yaml                  # THE routing table: every model, both modes
+  litellm.service
+  litellm-postgres.service
+  litellm.env.example           # template; the filled-in copy is never committed
+single-node/                    # compute nodes, one model per node
+  vllm@.service                 # systemd template; instance name picks the conf
+  models/*.conf                 # read by vllm@.service as EnvironmentFile
+multi-node/                     # compute nodes, one model across N nodes
+  vllm-multinode@.service       # systemd template
+  vllm-multinode.sh             # launcher; runs on every node in the deployment
+  Containerfile, entry.sh       # the image: vLLM + pinned Ray + entrypoint
+  conf/*.conf                   # one per deployment; example.conf is the template
+bootstrap.sh                    # install this repo's files to their host paths
+node-free-check.sh              # shared guard: refuses to start if the node is taken
+```
 
 **Known issues, see [Open items](#open-items):** RDMA is unavailable so cross-node
 traffic runs over TCP.
@@ -38,14 +87,16 @@ enforces it and will refuse to start when a node is already taken.
 ## Contents
 
 - [Setup](#setup)
+- [node allocation](#node-allocation)
+- [layout](#layout)
 - Tasks: [single-node model](#deploy-a-single-node-model) &middot;
   [multi-node model](#deploy-a-multi-node-model) &middot;
   [register in the proxy](#register-a-model-in-the-proxy-login-node-only) &middot;
   [add a node](#add-a-node-to-a-multi-node-deployment) &middot;
   [change a setting](#change-a-setting) &middot;
   [stop deployment](#stop-deployment)
-- Reference: [layout](#layout) &middot; [host paths](#host-paths) &middot;
-  [node allocation](#node-allocation) &middot; [pinned versions](#pinned-versions) &middot;
+- Reference: [host paths](#host-paths)
+  [pinned versions](#pinned-versions) &middot;
   [reading bootstrap output](#reading-bootstrapsh-output)
 - [Troubleshooting](#troubleshooting)
 - [Important Data](#important-data)
@@ -56,7 +107,7 @@ enforces it and will refuse to start when a node is already taken.
 
 ---
 
-# Setup
+# First time set up on the login node and new compute nodes
 
 ## Prerequisites
 
@@ -107,7 +158,7 @@ See [reading bootstrap output](#reading-bootstrapsh-output) for what `ok` and
 `updated` mean. It never touches `~/litellm.env` or any other secret, and it exits
 non-zero rather than reporting success if the layout is wrong or a file is missing.
 
-## Updating later
+# How to update or upgrade later
 
 ```bash
 # compute nodes: one pull serves all five
@@ -437,26 +488,6 @@ Clearing `/tmp/ray` matters: stale session state there once made
 
 # Reference
 
-## Layout
-
-```
-proxy/                          # login node only
-  litellm.yaml                  # THE routing table: every model, both modes
-  litellm.service
-  litellm-postgres.service
-  litellm.env.example           # template; the filled-in copy is never committed
-single-node/                    # compute nodes, one model per node
-  vllm@.service                 # systemd template; instance name picks the conf
-  models/*.conf                 # read by vllm@.service as EnvironmentFile
-multi-node/                     # compute nodes, one model across N nodes
-  vllm-multinode@.service       # systemd template
-  vllm-multinode.sh             # launcher; runs on every node in the deployment
-  Containerfile, entry.sh       # the image: vLLM + pinned Ray + entrypoint
-  conf/*.conf                   # one per deployment; example.conf is the template
-bootstrap.sh                    # install this repo's files to their host paths
-node-free-check.sh              # shared guard: refuses to start if the node is taken
-```
-
 ## Host paths
 
 Home directories are per-machine and only `/mimer` is shared, so unit files land on
@@ -475,32 +506,6 @@ each relevant node. `bootstrap.sh` does this; the table is the reference.
 
 Both `.service` templates are **generated**, not copied: `bootstrap.sh` substitutes
 the checkout path for `@@REPO@@`. Re-run it if the checkout ever moves.
-
-## Node allocation
-
-**There is no scheduler.** Keep this table current, in the same commit as any change
-to a node list.
-
-| Node | Assigned to | Since |
-|---|---|---|
-| `sll-m11-38` | single-node `Qwen3-32B`** (serves `:8000`)| 2026-08-17 |
-| `sll-m11-39` | free | |
-| `sll-m11-40` | free | |
-| `sll-m11-41` | **multi-node `qwen3-235b`** (head, serves `:8000`) | 2026-08-17 |
-| `sll-m11-42` | **multi-node `qwen3-235b`** (worker) | 2026-08-17 |
-
-A multi-node deployment claims all four GPUs at 0.90 utilization, so nothing
-meaningful is left for a second model. Sharing produces an out-of-memory error on one
-rank, surfaced as a NCCL error reported by the others, several screens from the cause.
-
-`node-free-check.sh` enforces this, matching on the container **image** as well as the
-name so a hand-started container counts too. `ALLOW_SHARED_NODE=1` in a conf overrides
-it. It deliberately does not check `nvidia-smi`, because a fast restart races with
-memory still being released and a guard that false-positives gets deleted.
-
-`bootstrap.sh` installs every model conf on every compute node, since a conf that is
-never started does nothing. **A conf being present is not permission to start it.**
-This table is.
 
 ## Pinned versions
 
