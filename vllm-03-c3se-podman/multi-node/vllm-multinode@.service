@@ -1,0 +1,53 @@
+[Unit]
+# vllm-multinode@.service
+# Host path: ~/.config/systemd/user/vllm-multinode@.service  (every participating node)
+# Installed by bootstrap.sh, which substitutes @@REPO@@ for the checkout path.
+# Re-run bootstrap.sh if the checkout ever moves.
+#
+# Instance name is the deployment name, matching the conf on Mimer:
+#   multi-node/conf/<name>.conf  ->  systemctl --user start vllm-multinode@<name>
+#
+# The SAME unit and the SAME command run on every node. The launcher works out
+# whether this node is the head or a worker. There is deliberately no cross-node
+# ordering, because systemd cannot express it across machines; the head polls until
+# every node has registered its GPUs instead.
+#
+# Like vllm@.service, this is started manually. A multi-node model holds several
+# whole nodes, and that should be a deliberate act rather than a boot-time surprise.
+Description=vLLM multi-node deployment %i
+Documentation=file:@@REPO@@/README.md
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+
+# Same stale-state cleanup the login-node units use. Note this covers only the /tmp
+# paths. Do not add a /run/user/<uid>/libpod wipe here; that belongs in manual
+# recovery, since it can disrupt a healthy running container.
+ExecStartPre=-/usr/bin/rm -rf /tmp/storage-run-%U/containers /tmp/storage-run-%U/libpod/tmp
+ExecStartPre=-/usr/bin/podman rm -f vllm-multinode-%i
+
+ExecStart=@@REPO@@/multi-node/vllm-multinode.sh %i
+
+ExecStop=/usr/bin/podman stop -t 120 vllm-multinode-%i
+ExecStopPost=-/usr/bin/podman rm -f vllm-multinode-%i
+
+# No start timeout: the head waits for the whole cluster, then loads several hundred
+# gigabytes of weights off Mimer, and there is no readiness signal to wait on.
+# Do not change Type to notify.
+TimeoutStartSec=0
+TimeoutStopSec=180
+
+# on-failure rather than always, unlike vllm@.service. A deliberate stop must stay
+# stopped, and RestartSec is long because restarting while another node is down just
+# returns to the waiting loop and fills the journal.
+Restart=on-failure
+RestartSec=60
+
+KillMode=mixed
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=default.target

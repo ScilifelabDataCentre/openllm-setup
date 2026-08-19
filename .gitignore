@@ -46,6 +46,14 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+litellm.env
+*.env
+!*.env.example
 
 # pyenv
 .python-version
+
+# Local artefacts that are built or downloaded rather than committed.
+*.tar
+images/
+

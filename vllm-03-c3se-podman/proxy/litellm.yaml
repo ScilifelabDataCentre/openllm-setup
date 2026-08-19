@@ -1,0 +1,32 @@
+# LiteLLM proxy routing table.
+# Host path: ~/litellm/litellm.yaml  (login node). Install with: ./bootstrap.sh login
+#
+# This is the ONE routing table for the whole backend. Single-node and multi-node
+# models both appear here, and LiteLLM cannot tell them apart: it sees an
+# OpenAI-compatible endpoint and forwards to it. For a multi-node deployment,
+# api_base points at the HEAD node, which is the only one that serves HTTP.
+#
+# model_name, the string after hosted_vllm/, and MODEL_NAME in the model's conf must
+# all be identical, or requests fail with a confusing 404 rather than a clear error.
+#
+# Secrets come from ~/litellm.env via os.environ. Never put a key in this file.
+model_list:
+
+  # --- single node -----------------------------------------------------------
+  - model_name: Qwen/Qwen3-32B
+    litellm_params:
+      model: hosted_vllm/Qwen/Qwen3-32B
+      api_base: http://sll-m11-38:8000/v1
+
+  # --- multi node ------------------------------------------------------------
+  # Served across sll-m11-41 (head) and sll-m11-42 (worker). Only the head serves
+  # HTTP, so that is the address here. Must match MODEL_NAME in
+  # multi-node/conf/qwen3-235b.conf.
+  - model_name: Qwen3-235B-A22B
+    litellm_params:
+      model: hosted_vllm/Qwen3-235B-A22B
+      api_base: http://sll-m11-41:8000/v1
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  database_url: os.environ/DATABASE_URL
