@@ -14,7 +14,7 @@ pull on the hosts, restart. Never edit a host directly.
 | LiteLLM proxy `:4000` + Postgres | `sll-login` | running |
 | `Qwen3-235B-A22B` multi-node | `sll-m11-41` (head, `:8000`) + `sll-m11-42` | running, TCP transport |
 | `Qwen/Qwn3-32B` single-node | `sll-m11-38` | running |
-| Public endpoint | `https://scilifelab-ai.c3se.chalmers.se/v1` | via nginx/TLS to Open WebUI |
+| Exposed to scilifelab infra endpoint | `https://scilifelab-ai.c3se.chalmers.se/v1` | via nginx/TLS to Open WebUI |
 
 ## Node allocation
 
@@ -260,6 +260,7 @@ the cluster**, so start order does not matter, which is what lets each node run 
 independent unit. systemd cannot express ordering across machines.
 
 ```bash
+# Example deployment
 # 1. build the image once, on any compute node, then load it on every node
 cd multi-node
 podman build -t localhost/vllm-ray:0.24.0-ray2.57.0 -f Containerfile .
@@ -561,6 +562,61 @@ when it starts but the model misbehaves.
 | Postgres up but every query fails on shared memory | unit lost its settings | must keep both `--shm-size=256m` and `-c dynamic_shared_memory_type=mmap` |
 | Stuck in `failed`, restart refused | systemd rate limiting | `systemctl --user reset-failed <unit>` then start |
 | `status=125` from podman, and a bare `podman ps` also fails | podman crash-loop | see below |
+
+## Finding the right tool-call parser
+
+`--enable-auto-tool-choice` and `--tool-call-parser` are required together, and Open
+WebUI sends `tool_choice:"auto"` on every chat, so a model without both returns a 400
+on the first message. The parser must match what the model actually emits.
+
+**`vllm serve --help` is truncated in this image**, and the parsers have moved out of
+`vllm.entrypoints.openai.tool_parsers` where upstream documentation puts them. In this
+build they live in `vllm/tool_parsers/`, with a lazy registry in `__init__.py` mapping
+names to classes. That means `ToolParserManager.tool_parsers` reads empty until
+something triggers registration, so read the registry directly:
+
+```bash
+podman exec <container> bash -c \
+  'grep -oP "^    \"\K[a-z0-9_]+" \
+     /usr/local/lib/python3.12/dist-packages/vllm/tool_parsers/__init__.py | sort | tr "\n" " "'
+```
+
+**Decide by reading the model's chat template**, which defines the exact format it was
+trained to produce:
+
+```bash
+python3 -c "
+import json; t=json.load(open('<HF_MODEL>/tokenizer_config.json'))['chat_template']
+i=t.find('tool_call'); print(t[max(0,i-400):i+600])"
+```
+
+| Template produces | Parser |
+|---|---|
+| JSON inside `<tool_call>` tags | `hermes` |
+| `<function=name><parameter=key>` | `qwen3_xml`, or `qwen3_coder` for Qwen3-Coder |
+| Python call syntax, `[fn(arg="x")]` | `pythonic`, `llama4_pythonic` |
+| Gemma family | `gemma4` |
+
+This build ships 44 parsers, so check the registry
+rather than assuming a name exists. Confirmed for Qwen3 instruct models:
+`hermes` maps to `Hermes2ProToolParser`, which matches their template exactly.
+
+Add `--reasoning-parser` only for models that emit thinking blocks. Qwen3-32B does;
+Qwen3-235B-A22B-**Instruct**-2507 does not, being the non-thinking variant.
+
+**Verify it parses:**
+
+```bash
+curl -s http://localhost:8000/v1/chat/completions -H "Content-Type: application/json" -d '{
+  "model":"<MODEL_NAME>",
+  "messages":[{"role":"user","content":"What is the weather in Uppsala?"}],
+  "tools":[{"type":"function","function":{"name":"get_weather",
+    "parameters":{"type":"object","properties":{"city":{"type":"string"}},"required":["city"]}}}],
+  "tool_choice":"auto","max_tokens":100}' | python3 -m json.tool
+```
+
+A `tool_calls` array with parsed arguments means it works. Raw `<tool_call>` text
+inside `content` means the parser is not engaging, and nothing crashes to tell you.
 
 ## Podman crash-loop
 
