@@ -267,20 +267,24 @@ podman build -t localhost/vllm-ray:0.24.0-ray2.57.0 -f Containerfile .
 mkdir -p /mimer/NOBACKUP/sll_dc/images
 podman save -o /mimer/NOBACKUP/sll_dc/images/vllm-ray-0.24.0-ray2.57.0.tar \
   localhost/vllm-ray:0.24.0-ray2.57.0
+# Change compute node ids accordingly
 for n in 41 42; do
   ssh sll-m11-$n 'podman load -i /mimer/NOBACKUP/sll_dc/images/vllm-ray-0.24.0-ray2.57.0.tar'
 done
 
 # 2. write conf/<name>.conf from conf/example.conf, commit, pull, then on each node:
 REPO=/mimer/NOBACKUP/sll_dc/openllm-setup/vllm-03-c3se-podman
+# Change compute node ids accordingly
 for n in 41 42; do ssh sll-m11-$n "$REPO/bootstrap.sh compute"; done
 
 # 3. start on EVERY node. Order does not matter.
+# Change compute node ids accordingly
 for n in 41 42; do ssh sll-m11-$n \
   'systemctl --user reset-failed vllm-multinode@<name>
    systemctl --user start vllm-multinode@<name>'; done
 
 # 4. watch the head
+# Change compute node ids accordingly
 ssh sll-m11-41 'podman logs -f vllm-multinode-<name>'
 ```
 
@@ -407,6 +411,7 @@ One line in the conf. Head, node count, total GPUs and pipeline depth all derive
 it:
 
 ```bash
+# Change compute node ips accordingly
 MULTINODE_NODES="10.52.30.121 10.52.30.122 10.52.30.120"
 ```
 
@@ -456,8 +461,11 @@ nvidia-smi                           # want ~0 MiB
 ## Multi node: workers first, then the head
 
 ```bash
+# Change compute node ids accordingly
 ssh sll-m11-42 'systemctl --user stop vllm-multinode@<name>'   # workers
 ssh sll-m11-41 'systemctl --user stop vllm-multinode@<name>'   # head last
+
+# Change compute node ids accordingly
 for n in 41 42; do ssh sll-m11-$n \
   'systemctl --user reset-failed vllm-multinode@<name>
    podman ps --format "{{.Names}}"; nvidia-smi'; done
