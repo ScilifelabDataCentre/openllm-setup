@@ -696,12 +696,6 @@ podman volume inspect litellm-pg-data --format '{{.Mountpoint}}'
 
 # Transport status: RDMA
 
-Here is the replacement for the **Transport status** section:
-
----
-
-# Transport status: RDMA
-
 Cross-node NCCL runs over **RDMA** on the InfiniBand fabric. `USE_RDMA=1` in
 `multi-node/conf/qwen3-235b.conf`. Enabled 2026-08-20.
 
