@@ -12,7 +12,7 @@ pull on the hosts, restart. Never edit a host directly.
 | What | Where | Status |
 |---|---|---|
 | LiteLLM proxy `:4000` + Postgres | `sll-login` | running |
-| `Qwen3-235B-A22B` multi-node | `sll-m11-41` (head, `:8000`) + `sll-m11-42` | running, TCP transport |
+| `Qwen3-235B-A22B` multi-node | `sll-m11-41` (head, `:8000`) + `sll-m11-42` | running, RDMA enabled |
 | `Qwen/Qwn3-32B` single-node | `sll-m11-38` | running |
 | Exposed to scilifelab infra endpoint | `https://scilifelab-ai.c3se.chalmers.se/v1` | via nginx/TLS to Open WebUI |
 
@@ -23,13 +23,13 @@ to a node list.
 
 | Node | Assigned to | Since |
 |---|---|---|
-| `sll-m11-38` | single-node `Qwen3-32B`** (serves `:8000`)| 2026-08-17 |
+| `sll-m11-38` | single-node `Qwen3-32B`** (serves `:8000`)| 2026-08-20 |
 | `sll-m11-39` | free | |
 | `sll-m11-40` | free | |
-| `sll-m11-41` | **multi-node `qwen3-235b`** (head, serves `:8000`) | 2026-08-17 |
-| `sll-m11-42` | **multi-node `qwen3-235b`** (worker) | 2026-08-17 |
+| `sll-m11-41` | **multi-node `qwen3-235b`** (head, serves `:8000`) | 2026-08-20 |
+| `sll-m11-42` | **multi-node `qwen3-235b`** (worker) | 2026-08-20 |
 
-A multi-node deployment claims all four GPUs at 0.90 utilization, so nothing
+A multi-node deployment claims all four GPUs at 0.93 utilization, so nothing
 meaningful is left for a second model. Sharing produces an out-of-memory error on one
 rank, surfaced as a NCCL error reported by the others, several screens from the cause.
 
@@ -62,8 +62,7 @@ bootstrap.sh                    # install this repo's files to their host paths
 node-free-check.sh              # shared guard: refuses to start if the node is taken
 ```
 
-**Known issues, see [Open items](#open-items):** RDMA is unavailable so cross-node
-traffic runs over TCP.
+**Known issues, see [Open items](#open-items)
 
 ## Architectural considerations
 
@@ -100,7 +99,7 @@ enforces it and will refuse to start when a node is already taken.
   [reading bootstrap output](#reading-bootstrapsh-output)
 - [Troubleshooting](#troubleshooting)
 - [Important Data](#important-data)
-- [Transport status: why RDMA is off](#transport-status-why-rdma-is-off)
+- [Transport status: RDMA](#transport-status-rdma)
 - [Important Settings](#important-settings)
 - [Open items](#open-items)
 - [Secrets](#secrets)
@@ -695,61 +694,78 @@ podman volume inspect litellm-pg-data --format '{{.Mountpoint}}'
 
 ---
 
-# Transport status: why RDMA is off
+# Transport status: RDMA
 
-Cross-node NCCL runs over TCP on the InfiniBand fabric, not RDMA, because
-`USE_RDMA=0`. This is a workaround, and as of 2026-08-17 it is still required.
+Here is the replacement for the **Transport status** section:
 
-**The cause.** RDMA must pin memory, charged against `RLIMIT_MEMLOCK`. NCCL needs more
-than 8 MB, so `ibv_reg_mr_iova2` fails with "Cannot allocate memory".
+---
 
-**What was fixed, and what was not.** C3SE raised `memlock` to 1 GiB in
-`/etc/security/limits.conf` on 2026-08-14. That applies to SSH sessions via
-`pam_limits`. It does **not** apply to the systemd user manager, which is where our
-services actually come from:
+# Transport status: RDMA
 
-```
-[llm@sll-m11-42 ~]$ ulimit -l                                        # this ssh session
-1073741824
-[llm@sll-m11-42 ~]$ systemd-run --user --pipe --wait bash -c 'ulimit -l; ulimit -Hl'
-8192
-8192
-[llm@sll-m11-42 ~]$ grep -i 'max locked' /proc/$(pgrep -u $(id -u) -f 'systemd --user' | head -1)/limits
-Max locked memory         8388608              8388608              bytes
-```
+Cross-node NCCL runs over **RDMA** on the InfiniBand fabric. `USE_RDMA=1` in
+`multi-node/conf/qwen3-235b.conf`. Enabled 2026-08-20.
 
-Because the **hard** limit is also 8 MB, `LimitMEMLOCK=infinity` in a unit cannot help:
-only root can raise a hard limit.
+**The history:** RDMA must pin memory, charged
+against `RLIMIT_MEMLOCK`. NCCL needs more than 8 MB, so `ibv_reg_mr_iova2` failed with
+"Cannot allocate memory" and we ran on TCP as a workaround from 2026-08-13.
 
-**What is needed.** Either `user@1001.service` is simply older than the limits change
-and a restart of it would pick up the new values, or `DefaultLimitMEMLOCK=infinity` is
-needed in `/etc/systemd/system.conf` or as a drop-in on `user@.service`. These
-distinguish the two:
+C3SE raised `memlock` to 1 GiB in `/etc/security/limits.conf` on 2026-08-14, which
+fixed SSH sessions but **not** the services. Those come from the systemd user manager,
+which takes limits from systemd rather than PAM, and `user@1001.service` had been
+running since before the change, so it kept its old 8 MB, hard limit included. A unit
+cannot raise a hard limit; only root can.
+
+The building cooling failure on 2026-08-19 resolved it by accident. All nodes were
+powered down, `user@1001.service` started fresh on boot, and it inherited the new
+limit.
+
+**Verifying the limit:**
 
 ```bash
-systemctl show "user@$(id -u).service" -p LimitMEMLOCK
-grep -rn limits /etc/pam.d/systemd-user
+
+# what a systemd-started process actually gets on compute nodes
+systemd-run --user --pipe --wait bash -c 'echo soft=$(ulimit -l) hard=$(ulimit -Hl)'
+
+# the limits of the running service
+# Replace <unit> with for example, vllm-multinode@qwen3-235b
+pid=$(systemctl --user show <unit> -p MainPID --value)
+grep -i 'max locked memory' /proc/$pid/limits
 ```
 
-Either way it needs root, and restarting `user@1001.service` terminates every user
-service, so it should be scheduled.
+Both nodes should report `soft=1073741824 hard=1073741824`. If a node is ever
+reinstalled or its user manager restarts before the limits are applied, this regresses
+silently and RDMA fails again at NCCL init.
 
-**Cost of the workaround.** Modest at two nodes. Pipeline parallelism ships only
-activations across the node boundary, a few megabytes per handoff, not weights and not
-all-reduces. Expect a few percent on generation and around ten percent on long-prompt
-time to first token, growing with pipeline depth. Note also that GPU2 and GPU3 are
-`SYS` from the NICs on these nodes, a socket-interconnect hop, so GPUDirect
-specifically may not help even once RDMA works.
-
-**To flip, once the limit is raised.** Verify first with the `systemd-run` one-liner
-above, so you do not spend twenty minutes on a restart to find out. Then set
-`USE_RDMA=1`, restart on every node, and check:
+**Confirming RDMA is actually in use**, without a restart:
 
 ```bash
-podman logs vllm-multinode-<name> 2>&1 | grep -E 'NET/IB|NET/Socket'   # want NET/IB
-podman logs vllm-multinode-<name> 2>&1 | grep -c ibv_reg_mr            # want 0
-podman logs vllm-multinode-<name> 2>&1 | grep -E 'GDR [01]|PXN [0-9]'  # what NCCL chose
+# the environment: NCCL_IB_HCA present and NCCL_IB_DISABLE absent means RDMA
+# these are example nodes, make sure to use the correct node
+# Replace <name> with for example, qwen3-235b
+ssh sll-m11-41 'podman exec vllm-multinode-<name> env | grep -E "NCCL_IB|NCCL_SOCKET|GLOO"'
+
+# the launcher records it per start
+# these are example nodes, make sure to use the correct node
+ssh sll-m11-41 'journalctl --user -u vllm-multinode@<name> | grep "\[launch\].*rdma="'
 ```
+
+`NCCL_DEBUG=WARN` in normal operation suppresses the transport lines, so `podman logs`
+will not tell you. Set `NCCL_DEBUG=INFO` for one run if you need NCCL's own account:
+
+```bash
+podman logs vllm-multinode-<name> 2>&1 | grep -E "NET/IB|NET/Socket" | head -3
+podman logs vllm-multinode-<name> 2>&1 | grep -oE "GDR [01]|PXN [0-9]" | sort -u
+podman logs vllm-multinode-<name> 2>&1 | grep -c ibv_reg_mr        # want 0
+```
+
+**Rollback**: `USE_RDMA=0` on conf file returns to TCP over IPoIB, which served
+reliably from 13 to 20 August.
+
+**Still open: whether GPUDirect engages.** GPU2 and GPU3 are `SYS` from the NICs on
+these nodes, meaning a socket-interconnect hop, so NCCL may disable GPUDirect for them
+even with RDMA working. The `GDR` and `PXN` values above answer it, and have not yet
+been captured. If GPUDirect is off for the far GPUs, `NCCL_NET_GDR_LEVEL=PHB` would
+enable it only where the path is favourable.
 
 ---
 
@@ -771,15 +787,15 @@ podman logs vllm-multinode-<name> 2>&1 | grep -E 'GDR [01]|PXN [0-9]'  # what NC
 
 # Open items
 
-1. **RDMA is unavailable.** Needs a root-side systemd limits change. See
-   [transport status](#transport-status-why-rdma-is-off). Not blocking.
-2. **No health monitoring.** Item 2 went unnoticed for five weeks. A periodic probe of
-   each `api_base`, or a LiteLLM fallback route, would have caught it on day one.
-3. **`--enforce-eager` is still set** on the multi-node deployment. It exists only to
+1. **No health monitoring.** A periodic probe of each `api_base`, or a LiteLLM fallback route
+2. **`--enforce-eager` is still set** on the multi-node deployment. It exists only to
    make first bring-up debuggable. Removing it costs startup time and buys throughput;
    measure before and after.
-4. **The login node's `memlock` is still 8 MB** in SSH sessions, unlike the compute
-   nodes. Harmless, since nothing there uses RDMA, but inconsistent.
+3. **The login node's memlock is 8 MB**, unlike the compute nodes which have 1 GiB.
+Not a problem: LiteLLM and Postgres use TCP sockets and never register memory with an
+HCA. Recorded here because measuring ulimit -l or systemd-run --user on
+sll-login returns 8192 and looks like a regression. Always check memlock on the
+compute nodes that actually runs the model.
 
 ---
 
