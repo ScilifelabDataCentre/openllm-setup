@@ -146,6 +146,26 @@ This chart is deployed via ArgoCD on the KTH cluster:
 
 ArgoCD tracks the `main` branch and syncs the chart from the `openwebui-kth-cluster-helm` directory. Environment-specific overrides and secrets are managed outside the chart through ArgoCD's values overlays or a gitignored `values-local.yaml`.
 
+## Backups
+
+The files under `openwebui-kth-cluster-helm/backups/` are not part of the Helm release. They are managed separately with kustomize and are excluded from packaged chart artifacts via `.helmignore`.
+
+Apply the backup resources:
+
+```bash
+kubectl apply -k ./openwebui-kth-cluster-helm/backups
+```
+
+This creates the backup PVC, backup and restore CronJobs, the Rubrik `ProtectionSet`, and the PostgreSQL backup `NetworkPolicy` in the `openllm` namespace.
+
+To run a backup immediately:
+
+```bash
+kubectl -n openllm create job --from=cronjob/postgresql-backup postgresql-backup-manual-$(date +%s)
+```
+
+The helper pod manifest `backups/backup-pvc-shell-pod.yaml` is intentionally not included in `kustomization.yaml`; apply it only when you need an interactive pod mounted to the backup PVC.
+
 ## Usage
 
 Render the manifests:

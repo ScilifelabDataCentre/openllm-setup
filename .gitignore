@@ -8,6 +8,11 @@
 logs/
 *.log
 
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
 # Data directories  
 data/
 models/
@@ -32,3 +37,23 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+litellm.env
+*.env
+!*.env.example
+
+# pyenv
+.python-version
+
+# Local artefacts that are built or downloaded rather than committed.
+*.tar
+images/
+

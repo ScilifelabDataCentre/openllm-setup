@@ -1,0 +1,58 @@
+# ---------------------------------------------------------------------------
+# Override values for the scilifelab-2-dev cluster (dev-2).
+# Layered on top of the chart's values.yaml, which stays as the shared default.
+#
+#   helm install embeddings ./embeddings-kth-cluster-helm -n openllm \
+#     -f ./embeddings-kth-cluster-helm/values-prod2.yaml
+#
+# (or referenced from the ArgoCD app's helm.valueFiles)
+# ---------------------------------------------------------------------------
+
+# openllm already exists on dev-2 (owned by the Open WebUI app): do NOT recreate.
+namespace:
+  create: false
+  name: openllm
+
+networkPolicy:
+  # Open WebUI runs in the same namespace on prod-2.
+  allowedNamespace: openllm
+  # Only needed when the ingress below is enabled, so the nginx controller
+  # (kube-system on RKE2) can reach the pod. Uncomment it together with ingress.
+  # ingressControllerNamespace: kube-system
+
+gpu:
+  # prod-2 GPU nodes advertise this product label, DIFFERENT from dev-1's
+  # NVIDIA-A40-48C. Each node is one A40 vGPU with a 16 GB profile (16C),
+  # time-sliced into 8 schedulable nvidia.com/gpu units ("-SHARED"). A pod
+  # requesting 1 GPU shares the 16 GB card with up to 7 others, with no
+  # per-slice memory limit. Four such nodes (32 slots), so scheduling is easy.
+  nodeSelector:
+    nvidia.com/gpu.product: NVIDIA-A40-16C-SHARED
+  # Taint confirmed on prod-2: nvidia.com/gpu:NoSchedule.
+  tolerations:
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+
+model:
+  # The card is 16 GB (not 48 GB) and shared, so reserve modestly.
+  # 0.30 * 16 GB ~ 4.8 GB is plenty for BGE-M3 (~1-2 GB) and leaves room for
+  # other tenants on the same GPU. max-model-len 8192 from values.yaml is fine.
+  gpuMemoryUtilization: "0.30"
+
+ingress:
+  enabled: false
+  className: nginx
+  host: embeddings.scilifelab-2-prod.sys.kth.se
+  path: /
+  pathType: Prefix
+  tls:
+    enabled: true
+    secretName: embeddings-prod2-tls
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    # SECURITY (if enabled): restrict who can reach it, e.g. to prod's egress CIDR:
+    # nginx.ingress.kubernetes.io/whitelist-source-range: "PROD_EGRESS_IP/32"

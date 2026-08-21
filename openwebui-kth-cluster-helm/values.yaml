@@ -61,6 +61,8 @@ webui:
         - ALL
   readinessInitialDelaySeconds: 15
   readinessPeriodSeconds: 10
+  livenessInitialDelaySeconds: 30
+  livenessPeriodSeconds: 20
   extraEnv: []
 
 docs:

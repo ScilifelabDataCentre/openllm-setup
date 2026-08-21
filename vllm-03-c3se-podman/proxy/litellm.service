@@ -1,0 +1,29 @@
+# LiteLLM proxy (switchboard). Path on host: ~/.config/systemd/user/litellm.service  (login node sll-login)
+# Requires ~/litellm.env (see litellm.env.example) and ~/litellm/litellm.yaml
+[Unit]
+Description=Launch LiteLLM server
+After=network-online.target litellm-postgres.service
+Wants=network-online.target litellm-postgres.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+# NOTE: this path is per USER, not per container, and litellm and
+# litellm-postgres both run under llm on this node at the same time. Restarting
+# one therefore clears podman runtime state belonging to the other. It has been
+# in place since the original setup and is left as-is here, but it is a candidate
+# cause of the podman crash-loop documented in the README. Do not copy this
+# pattern to new units without checking whether they can run alongside others.
+ExecStartPre=-/usr/bin/rm -rf /tmp/storage-run-%U/containers /tmp/storage-run-%U/libpod/tmp
+ExecStartPre=-/usr/bin/podman rm -f litellm
+ExecStart=/usr/bin/podman run --rm --name litellm --net host \
+    --env-file %h/litellm.env \
+    docker.io/litellm/litellm \
+    --config %h/litellm/litellm.yaml \
+    --port 4000
+ExecStop=/usr/bin/podman stop litellm
+
+[Install]
+WantedBy=default.target

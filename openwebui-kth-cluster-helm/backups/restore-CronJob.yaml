@@ -1,0 +1,66 @@
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-restore
+spec:
+  schedule: '0 0 30 2 *'  # Schedule does not matter for suspended cronjobs
+  suspend: true
+  timeZone: Europe/Stockholm
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: Never
+          containers:
+            - name: pgdump
+              image: postgres:18-alpine
+              imagePullPolicy: IfNotPresent
+              command:
+                - /bin/sh
+                - -ec
+              args:
+                - latest_backup="$(find "${BACKUP_DIR}" -maxdepth 1 -type f -name '*.pgdump' | sort | tail -n 1)"; test -n "${latest_backup}"; pg_restore -v -c -d "${PGDATABASE}" "${latest_backup}"
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                  ephemeral-storage: 20Mi
+              env:
+                - name: BACKUP_DIR
+                  value: /backups
+                - name: PGHOST
+                  value: open-webui-postgresql
+                - name: PGUSER
+                  value: openwebui
+                - name: PGDATABASE
+                  value: openwebui
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: open-webui-postgresql
+                      key: password
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+                  subPath: postgres
+              securityContext:
+                allowPrivilegeEscalation: false
+                privileged: false
+                runAsNonRoot: true
+                runAsUser: 70
+                runAsGroup: 70
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: postgresql-backup
+                readOnly: true

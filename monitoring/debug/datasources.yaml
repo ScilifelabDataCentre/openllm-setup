@@ -1,0 +1,12 @@
+# Taken from:
+# https://grafana.com/docs/alloy/latest/tutorials/send-logs-to-loki/#set-up-a-local-grafana-instance
+datasources:
+- name: Loki
+  type: loki
+  access: proxy
+  orgId: 1
+  url: http://loki:3100
+  basicAuth: false
+  isDefault: false
+  version: 1
+  editable: false

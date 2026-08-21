@@ -1,0 +1,39 @@
+# vLLM engine, one instance per model.
+# Path on host: ~/.config/systemd/user/vllm@.service  (compute nodes sll-m11-38..42)
+# Start with: systemctl --user start vllm@<name>   (reads ~/vllm/<name>.conf)
+[Unit]
+Description=vLLM server of %I
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+Restart=always
+RestartSec=5
+WorkingDirectory=%h/vllm
+EnvironmentFile=%h/vllm/%i.conf
+# NOTE: this path is per USER, not per container. It is safe here only because a
+# compute node runs one vLLM at a time, which the guard below enforces.
+ExecStartPre=-/usr/bin/rm -rf /tmp/storage-run-%U/containers /tmp/storage-run-%U/libpod/tmp
+
+# Clear our own stale container first, so the guard below cannot trip on it.
+ExecStartPre=-/usr/bin/podman rm -f vllm-%i
+
+# Refuse to start if another vLLM container is already running on this node, whether
+# single-node, multi-node, or started by hand. @@REPO@@ is substituted by bootstrap.sh
+# with the path of the checkout; ALLOW_SHARED_NODE from the model's conf overrides.
+# The service already depends on Mimer for HF_MODEL, so reading the guard from the
+# checkout adds no new failure mode.
+ExecStartPre=@@REPO@@/node-free-check.sh vllm-%i
+
+ExecStart=/usr/bin/podman run --rm --name vllm-%i --gpus all --net host ${PODMAN_IMAGE} \
+    ${HF_MODEL} \
+    --served-model-name ${MODEL_NAME} \
+    --port ${VLLM_PORT} \
+    --tensor-parallel-size=${VLLM_NGPUS} \
+    $VLLM_ARGS
+ExecStop=/usr/bin/podman stop vllm-%i
+
+[Install]
+WantedBy=default.target
