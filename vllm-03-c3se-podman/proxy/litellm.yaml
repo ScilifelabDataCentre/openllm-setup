@@ -13,9 +13,9 @@
 model_list:
 
   # --- single node -----------------------------------------------------------
-  - model_name: Qwen/Qwen3-32B
+ - model_name: Qwen/Qwen3.8-27B
     litellm_params:
-      model: hosted_vllm/Qwen/Qwen3-32B
+      model: hosted_vllm/Qwen/Qwen3.8-27B
       api_base: http://sll-m11-38:8000/v1
 
   # --- multi node ------------------------------------------------------------
