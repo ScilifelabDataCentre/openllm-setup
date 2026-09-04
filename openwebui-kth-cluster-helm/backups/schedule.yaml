@@ -1,0 +1,14 @@
+---
+apiVersion: protect.trident.netapp.io/v1
+kind: Schedule
+metadata:
+  name: daily-backups
+spec:
+  appVaultRef: storagegrid-s3-bucket
+  applicationRef: app-backup
+  backupRetention: "60"
+  granularity: Daily
+  hour: "1"
+  minute: "23"
+  runImmediately: true
+  snapshotRetention: "0"
