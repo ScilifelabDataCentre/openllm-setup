@@ -1,0 +1,20 @@
+---
+apiVersion: protect.trident.netapp.io/v1
+kind: Application
+metadata:
+  name: app-backup
+spec:
+  includedNamespaces:
+    - namespace: openllm
+      labelSelector:
+        matchLabels:
+          storage: app-backup
+  resourceFilter:
+    resourceMatchers:
+      - kind: PersistentVolumeClaim
+        version: v1
+      - kind: PersistentVolume
+        version: v1
+      - kind: VolumeSnapshotClass
+        version: v1
+    resourceSelectionCriteria: Include
