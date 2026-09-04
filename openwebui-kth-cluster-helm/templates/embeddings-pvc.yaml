@@ -1,0 +1,18 @@
+{{- if and .Values.embeddings.enabled .Values.embeddings.persistence.enabled (not .Values.embeddings.persistence.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.embeddingsPvcName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.embeddingsLabels" . | nindent 4 }}
+spec:
+  accessModes:
+    {{- toYaml .Values.embeddings.persistence.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.embeddings.persistence.size }}
+  {{- if .Values.embeddings.persistence.storageClass }}
+  storageClassName: {{ .Values.embeddings.persistence.storageClass | quote }}
+  {{- end }}
+{{- end }}

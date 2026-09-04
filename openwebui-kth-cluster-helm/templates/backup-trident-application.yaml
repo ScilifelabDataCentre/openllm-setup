@@ -1,0 +1,24 @@
+{{- if and .Values.backups.enabled .Values.backups.tridentProtect.enabled }}
+apiVersion: protect.trident.netapp.io/v1
+kind: Application
+metadata:
+  name: {{ .Values.backups.tridentProtect.applicationName }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+spec:
+  includedNamespaces:
+    - namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+      labelSelector:
+        matchLabels:
+          storage: postgresql-backup
+  resourceFilter:
+    resourceMatchers:
+      - kind: PersistentVolumeClaim
+        version: v1
+      - kind: PersistentVolume
+        version: v1
+      - kind: VolumeSnapshotClass
+        version: v1
+    resourceSelectionCriteria: Include
+{{- end }}

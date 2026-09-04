@@ -1,8 +1,8 @@
 apiVersion: v2
 name: openwebui-kth-cluster-helm
-description: Open WebUI deployment with a Tailscale sidecar and remote Ollama backend.
+description: Open WebUI deployment with bundled PostgreSQL, Qdrant, and vLLM embeddings.
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "main"
 dependencies:
   - name: postgresql

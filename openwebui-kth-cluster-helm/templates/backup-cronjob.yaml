@@ -1,0 +1,74 @@
+{{- if .Values.backups.enabled }}
+{{- $host := default (include "openwebui-kth-cluster-helm.postgresqlName" .) .Values.backups.postgresql.host }}
+{{- $user := default .Values.postgresql.auth.username .Values.backups.postgresql.user }}
+{{- $database := default .Values.postgresql.auth.database .Values.backups.postgresql.database }}
+{{- $secretName := default (include "openwebui-kth-cluster-helm.postgresqlSecretName" .) .Values.backups.postgresql.secretName }}
+{{- $passwordKey := default (default "password" .Values.postgresql.auth.secretKeys.userPasswordKey) .Values.backups.postgresql.passwordKey }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: postgresql-backup
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+spec:
+  schedule: {{ .Values.backups.backup.schedule | quote }}
+  timeZone: {{ .Values.backups.timeZone | quote }}
+  successfulJobsHistoryLimit: {{ .Values.backups.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.backups.failedJobsHistoryLimit }}
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          securityContext:
+            fsGroup: 70
+            seccompProfile:
+              type: RuntimeDefault
+          restartPolicy: Never
+          containers:
+            - name: pgdump
+              image: {{ printf "%s:%s" .Values.backups.image.repository .Values.backups.image.tag | quote }}
+              imagePullPolicy: {{ .Values.backups.image.pullPolicy }}
+              command:
+                - /backup-scripts/backup-postgresql.sh
+              resources:
+                {{- toYaml .Values.backups.backup.resources | nindent 16 }}
+              env:
+                - name: BACKUP_DIR
+                  value: /backups
+                - name: PGHOST
+                  value: {{ $host | quote }}
+                - name: PGUSER
+                  value: {{ $user | quote }}
+                - name: PGDATABASE
+                  value: {{ $database | quote }}
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: {{ $secretName }}
+                      key: {{ $passwordKey }}
+              volumeMounts:
+                - name: backup-storage
+                  mountPath: /backups
+                  subPath: postgres
+                - name: backup-scripts
+                  readOnly: true
+                  mountPath: /backup-scripts
+              securityContext:
+                allowPrivilegeEscalation: false
+                privileged: false
+                runAsNonRoot: true
+                runAsUser: 70
+                runAsGroup: 70
+                capabilities:
+                  drop:
+                    - ALL
+          volumes:
+            - name: backup-storage
+              persistentVolumeClaim:
+                claimName: {{ .Values.backups.pvc.name }}
+            - name: backup-scripts
+              configMap:
+                name: backup-scripts
+                defaultMode: 0550
+{{- end }}

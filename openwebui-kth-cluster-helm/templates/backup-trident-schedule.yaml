@@ -1,0 +1,18 @@
+{{- if and .Values.backups.enabled .Values.backups.tridentProtect.enabled }}
+apiVersion: protect.trident.netapp.io/v1
+kind: Schedule
+metadata:
+  name: {{ .Values.backups.tridentProtect.scheduleName }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+spec:
+  appVaultRef: {{ .Values.backups.tridentProtect.appVaultRef }}
+  applicationRef: {{ .Values.backups.tridentProtect.applicationName }}
+  backupRetention: {{ .Values.backups.tridentProtect.backupRetention | quote }}
+  granularity: Daily
+  hour: {{ .Values.backups.tridentProtect.hour | quote }}
+  minute: {{ .Values.backups.tridentProtect.minute | quote }}
+  runImmediately: {{ .Values.backups.tridentProtect.runImmediately }}
+  snapshotRetention: {{ .Values.backups.tridentProtect.snapshotRetention | quote }}
+{{- end }}

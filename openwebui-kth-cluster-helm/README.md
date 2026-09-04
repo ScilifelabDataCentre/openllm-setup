@@ -6,9 +6,11 @@ This chart deploys Open WebUI with:
 - Open WebUI configured to reach a remote Ollama endpoint
 - an optional bundled PostgreSQL dependency for the primary application database
 - a bundled Qdrant service as the default vector database backend
+- a bundled BGE-M3 vLLM embeddings service for RAG
 - optional external vLLM connectivity through the OpenAI-compatible API
 - optional external PostgreSQL, Redis, and vector database configuration for safer remote deployments
 - an optional ingress for local or cluster HTTP access
+- OpenTelemetry enabled
 
 ## Default configuration
 
@@ -20,7 +22,7 @@ The chart defaults currently include:
 - Ollama URL: `set-to-your-ollama-url`
 - vLLM endpoints: none configured
 - persistence: enabled, `ReadWriteOnce`, `5Gi`
-- gateway hostnames: `["openllm.scilifelab-2-dev.sys.kth.se"]`
+- gateway hostnames: `["openllm.gw.scilifelab-2-prod.sys.kth.se", "openllm.scilifelab.se", "open-llm.scilifelab.se"]`
 
 For this deployment, Open WebUI images are built in `https://github.com/ScilifelabDataCentre/open-webui`.
 The image artifacts are published under `ghcr.io/scilifelabdatacentre/open-webui:main`.
@@ -137,6 +139,14 @@ webui:
 
 If any endpoint requires authentication, store the semicolon-delimited key list in a Kubernetes Secret and point `webui.openaiApiKeysSecret` at it. The key order must match `webui.openaiEndpoints`. The chart renders these as `OPENAI_API_BASE_URLS` and `OPENAI_API_KEYS`, matching upstream Open WebUI behavior.
 
+## Embeddings
+
+The chart deploys BGE-M3 as an OpenAI-compatible vLLM embeddings service when `embeddings.enabled=true`. Open WebUI is automatically configured with `RAG_EMBEDDING_ENGINE`, `RAG_EMBEDDING_MODEL`, `RAG_OPENAI_API_BASE_URL`, `RAG_OPENAI_API_KEY`, and `RAG_EMBEDDING_BATCH_SIZE` when `embeddings.rag.enabled=true`.
+
+Create the `embeddings-api-key` Secret in the Open WebUI namespace before enabling the component. Its `api-key` entry is used both by vLLM and Open WebUI. The service is named `embeddings` by default and is only reachable from the Open WebUI pods through the bundled NetworkPolicy. Configure the GPU, model, cache PVC, and RAG settings under `embeddings` in `values.yaml`.
+
+The `embeddings.selectorLabels` defaults preserve the selector from the former standalone `embeddings` Helm release. Do not change them for an existing deployment: Kubernetes Deployment selectors are immutable. This lets ArgoCD update the workload in place during the chart migration.
+
 ## ArgoCD deployment
 
 This chart is deployed via ArgoCD on the KTH cluster:
@@ -148,15 +158,23 @@ ArgoCD tracks the `main` branch and syncs the chart from the `openwebui-kth-clus
 
 ## Backups
 
-The files under `openwebui-kth-cluster-helm/backups/` are not part of the Helm release. They are managed separately with kustomize and are excluded from packaged chart artifacts via `.helmignore`.
+The Helm release manages the PostgreSQL backup PVC, backup and restore CronJobs, PostgreSQL backup NetworkPolicy, and Trident Protect `Application` and `Schedule`. Backups are enabled by default through `backups.enabled=true`. Set `backups.tridentProtect.enabled=false` to omit only the Trident resources in an environment without its CRDs, or set `backups.enabled=false` to omit all backup resources.
 
-Apply the backup resources:
+The backup PVC is retained if the release is uninstalled. The on-demand helper pod remains outside the release at `backups/backup-pvc-shell-pod.yaml`; apply it only when an interactive mount of the backup PVC is needed.
+
+For an existing ArgoCD deployment that previously applied `backups/` with kustomize, stop applying that directory and synchronize the `open-llm-dev` Application normally. ArgoCD applies the Helm-rendered manifests to the existing same-named resources; do not use `Replace` or `Force` for this migration because those options can delete and recreate resources.
+
+For a direct Helm deployment outside ArgoCD, use `--take-ownership` to adopt the existing resources on the next upgrade:
 
 ```bash
-kubectl apply -k ./openwebui-kth-cluster-helm/backups
+helm upgrade --install open-webui ./openwebui-kth-cluster-helm \
+  --namespace openllm \
+  --take-ownership \
+  -f ./openwebui-kth-cluster-helm/values.yaml \
+  -f ./openwebui-kth-cluster-helm/values-local.yaml
 ```
 
-This creates the backup PVC, backup and restore CronJobs, the Rubrik `ProtectionSet`, and the PostgreSQL backup `NetworkPolicy` in the `openllm` namespace.
+The database dump runs at 19:00 in the configured `backups.timeZone`, before the default Trident Protect schedule at 01:23.
 
 To run a backup immediately:
 
@@ -164,7 +182,7 @@ To run a backup immediately:
 kubectl -n openllm create job --from=cronjob/postgresql-backup postgresql-backup-manual-$(date +%s)
 ```
 
-The helper pod manifest `backups/backup-pvc-shell-pod.yaml` is intentionally not included in `kustomization.yaml`; apply it only when you need an interactive pod mounted to the backup PVC.
+The helper pod is intentionally not included in the Helm release; apply it only when you need an interactive pod mounted to the backup PVC.
 
 ## Usage
 
@@ -204,6 +222,8 @@ The main configuration sections in [values.yaml](/Users/nikch187/Projects/sll/op
 - `postgresql`: bundled Bitnami PostgreSQL dependency configuration for the primary application database
 - `redis`: Redis URL and connection behavior for multi-user or future multi-replica setups
 - `vectorDatabase`: vector backend selection, bundled Qdrant deployment, auth, and tuning
+- `embeddings`: bundled vLLM embeddings deployment, GPU scheduling, model cache, API key, and RAG integration
+- `backups`: PostgreSQL dump, retention, recovery, PVC, and Trident Protect schedule configuration
 - `service`: Kubernetes Service type and ports
 - `gateway`: Gateway API host routing
 - `networkPolicy`: egress policy enablement for the deployment pods

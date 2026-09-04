@@ -239,6 +239,23 @@ spec:
               value: {{ .Values.vectorDatabase.qdrant.collectionPrefix | quote }}
             {{- end }}
             {{- end }}
+            {{- if and .Values.embeddings.enabled .Values.embeddings.rag.enabled }}
+            - name: RAG_EMBEDDING_ENGINE
+              value: "openai"
+            - name: RAG_EMBEDDING_MODEL
+              value: {{ .Values.embeddings.model.servedName | quote }}
+            - name: RAG_OPENAI_API_BASE_URL
+              value: {{ include "openwebui-kth-cluster-helm.embeddingsApiBaseUrl" . | quote }}
+            - name: RAG_OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embeddings.apiKey.existingSecret | quote }}
+                  key: {{ .Values.embeddings.apiKey.secretKey | quote }}
+            {{- if .Values.embeddings.rag.batchSize }}
+            - name: RAG_EMBEDDING_BATCH_SIZE
+              value: {{ .Values.embeddings.rag.batchSize | quote }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.webui.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
