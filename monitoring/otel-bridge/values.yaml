@@ -1,0 +1,88 @@
+fullnameOverride: openwebui-otel-bridge
+
+image:
+  repository: grafana/alloy
+  tag: v1.19.2
+
+command:
+  name: bin/otelcol
+
+mode: deployment
+replicaCount: 1
+
+ports:
+  # Open WebUI sends metrics using OTLP/gRPC.
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+    appProtocol: grpc
+
+  # Metrics converted from OTLP and exposed for k8s-monitoring.
+  openwebui-metrics:
+    enabled: true
+    containerPort: 9464
+    servicePort: 9464
+    protocol: TCP
+
+  health-check:
+    enabled: true
+    containerPort: 13133
+    servicePort: 13133
+    protocol: TCP
+
+alternateConfig:
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+
+  exporters:
+    # See: https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/v0.158.0/exporter/prometheusexporter/README.md
+    prometheus:
+      endpoint: 0.0.0.0:9464
+      resource_to_telemetry_conversion:
+        enabled: true
+
+  service:
+    extensions:
+      - health_check
+
+    pipelines:
+      metrics:
+        receivers:
+          - otlp
+        exporters:
+          - prometheus
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    memory: 256Mi
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: 13133
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: 13133
+
+serviceAccount:
+  create: false
+
+serviceMonitor:
+  enabled: true
+  metricsEndpoints:
+    - port: metrics
+    - port: openwebui-metrics
