@@ -76,7 +76,7 @@ webui:
     - name: OTEL_SERVICE_NAME
       value: "open-webui"
     - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
-      value: "openwebui-otel-bridge:4317"
+      value: "http://openwebui-otel-bridge:4317"
 
 docs:
   enabled: true
