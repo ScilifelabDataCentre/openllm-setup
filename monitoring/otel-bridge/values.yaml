@@ -20,7 +20,7 @@ ports:
     appProtocol: grpc
 
   # Metrics converted from OTLP and exposed for k8s-monitoring.
-  openwebui-metrics:
+  metrics:
     enabled: true
     containerPort: 9464
     servicePort: 9464
@@ -61,6 +61,23 @@ alternateConfig:
         exporters:
           - prometheus
 
+# Based on:
+# https://github.com/grafana/alloy/blob/main/operations/helm/charts/alloy/ci/nonroot-values.yaml
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 473
+  runAsGroup: 473
+  fsGroup: 473
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
 resources:
   requests:
     cpu: 25m
@@ -85,7 +102,6 @@ serviceMonitor:
   enabled: true
   metricsEndpoints:
     - port: metrics
-    - port: openwebui-metrics
 
 networkPolicy:
   enabled: true
