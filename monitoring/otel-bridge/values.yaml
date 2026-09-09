@@ -86,3 +86,13 @@ serviceMonitor:
   metricsEndpoints:
     - port: metrics
     - port: openwebui-metrics
+
+networkPolicy:
+  enabled: true
+  allowIngressFrom:
+  - namespaceSelector:
+      matchExpressions:
+        - key: kubernetes.io/metadata.name
+          operator: In
+          values:
+            - k8s-monitoring
