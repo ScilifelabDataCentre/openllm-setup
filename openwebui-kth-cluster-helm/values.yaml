@@ -68,13 +68,15 @@ webui:
     - name: ENABLE_OTEL
       value: "true"
     - name: ENABLE_OTEL_TRACES
-      value: "true"
+      value: "false"
     - name: ENABLE_OTEL_METRICS
       value: "true"
     - name: ENABLE_OTEL_LOGS
       value: "false"
     - name: OTEL_SERVICE_NAME
       value: "open-webui"
+    - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
+      value: "openwebui-otel-bridge:4317"
 
 docs:
   enabled: true
