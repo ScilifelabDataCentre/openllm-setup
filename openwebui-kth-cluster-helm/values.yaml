@@ -173,6 +173,93 @@ vectorDatabase:
       initialDelaySeconds: 15
       periodSeconds: 20
 
+embeddings:
+  enabled: true
+  nameOverride: ""
+  fullnameOverride: "embeddings"
+  replicaCount: 1
+  serviceAccount:
+    create: true
+    name: "embeddings"
+  image:
+    repository: vllm/vllm-openai
+    tag: "v0.10.2"
+    pullPolicy: IfNotPresent
+  model:
+    id: "BAAI/bge-m3"
+    servedName: "bge-m3"
+    task: "embed"
+    dtype: "bfloat16"
+    maxModelLen: 8192
+    gpuMemoryUtilization: "0.30"
+    extraArgs: []
+  gpu:
+    resourceName: "nvidia.com/gpu"
+    count: 1
+    nodeSelector:
+      nvidia.com/gpu.product: NVIDIA-A40-16C-SHARED
+    tolerations:
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+    affinity: {}
+  apiKey:
+    existingSecret: "embeddings-api-key"
+    secretKey: "api-key"
+  huggingface:
+    existingSecret: ""
+    secretKey: "token"
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes:
+      - ReadWriteOnce
+    size: 20Gi
+  dshmSize: 8Gi
+  resources:
+    requests:
+      cpu: "1"
+      memory: 8Gi
+    limits:
+      cpu: "4"
+      memory: 24Gi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    seccompProfile:
+      type: RuntimeDefault
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  networkPolicy:
+    enabled: true
+  startupProbe:
+    periodSeconds: 15
+    failureThreshold: 60
+  readinessProbe:
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 20
+  rag:
+    enabled: true
+    batchSize: "100"
+  extraEnv: []
+
 postgresql:
   enabled: true
   fullnameOverride: open-webui-postgresql
