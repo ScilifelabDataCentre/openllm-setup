@@ -132,3 +132,48 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- printf "%s://%s.%s.svc.cluster.local:%s" .Values.vectorDatabase.qdrant.scheme (include "openwebui-kth-cluster-helm.qdrantServiceName" .) (include "openwebui-kth-cluster-helm.qdrantNamespace" .) .Values.vectorDatabase.qdrant.port -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsName" -}}
+{{- default "embeddings" .Values.embeddings.nameOverride | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsFullname" -}}
+{{- if .Values.embeddings.fullnameOverride -}}
+{{- .Values.embeddings.fullnameOverride | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- include "openwebui-kth-cluster-helm.embeddingsName" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsLabels" -}}
+app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.embeddingsName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/component: embeddings
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsSelectorLabels" -}}
+app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.embeddingsName" . }}
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsServiceAccountName" -}}
+{{- if .Values.embeddings.serviceAccount.name -}}
+{{- .Values.embeddings.serviceAccount.name -}}
+{{- else -}}
+{{- include "openwebui-kth-cluster-helm.embeddingsFullname" . -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsPvcName" -}}
+{{- if .Values.embeddings.persistence.existingClaim -}}
+{{- .Values.embeddings.persistence.existingClaim -}}
+{{- else -}}
+{{- printf "%s-hf-cache" (include "openwebui-kth-cluster-helm.embeddingsFullname" .) -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.embeddingsApiBaseUrl" -}}
+{{- printf "http://%s.%s.svc.cluster.local:%v/v1" (include "openwebui-kth-cluster-helm.embeddingsFullname" .) (include "openwebui-kth-cluster-helm.namespace" .) .Values.embeddings.service.port -}}
+{{- end -}}
