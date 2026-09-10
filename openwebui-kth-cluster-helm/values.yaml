@@ -63,7 +63,22 @@ webui:
   readinessPeriodSeconds: 10
   livenessInitialDelaySeconds: 30
   livenessPeriodSeconds: 20
-  extraEnv: []
+  extraEnv:
+    # OpenTelemetry Configuration
+    - name: ENABLE_OTEL
+      value: "true"
+    - name: ENABLE_OTEL_TRACES
+      value: "false"
+    - name: ENABLE_OTEL_METRICS
+      value: "true"
+    - name: ENABLE_OTEL_LOGS
+      value: "false"
+    - name: OTEL_SERVICE_NAME
+      value: "open-webui"
+    - name: OTEL_EXPORTER_OTLP_INSECURE
+      value: "true"
+    - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
+      value: "http://openwebui-otel-bridge:4317"
 
 docs:
   enabled: true
