@@ -8,10 +8,9 @@ at  `http://openwebui-otel-bridge.openllm:9464`.
 
 This enpoint is advertised by a `ServiceMonitor`.
 
-To inspect the manifests:
+To render and inspect the manifests:
 ```
-mkdir manifests
-kustomize build --enable-helm -o manifests
+kustomize build --enable-helm
 ```
 
 To deploy, until managed by Argo CD:
