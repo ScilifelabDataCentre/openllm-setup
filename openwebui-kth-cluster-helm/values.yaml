@@ -177,6 +177,9 @@ embeddings:
   enabled: true
   nameOverride: ""
   fullnameOverride: "embeddings"
+  selectorLabels:
+    app.kubernetes.io/name: embeddings-kth-cluster-helm
+    app.kubernetes.io/instance: embeddings
   replicaCount: 1
   serviceAccount:
     create: true

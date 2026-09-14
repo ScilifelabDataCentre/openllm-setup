@@ -144,6 +144,8 @@ The chart deploys BGE-M3 as an OpenAI-compatible vLLM embeddings service when `e
 
 Create the `embeddings-api-key` Secret in the Open WebUI namespace before enabling the component. Its `api-key` entry is used both by vLLM and Open WebUI. The service is named `embeddings` by default and is only reachable from the Open WebUI pods through the bundled NetworkPolicy. Configure the GPU, model, cache PVC, and RAG settings under `embeddings` in `values.yaml`.
 
+The `embeddings.selectorLabels` defaults preserve the selector from the former standalone `embeddings` Helm release. Do not change them for an existing deployment: Kubernetes Deployment selectors are immutable. This lets ArgoCD update the workload in place during the chart migration.
+
 ## ArgoCD deployment
 
 This chart is deployed via ArgoCD on the KTH cluster:

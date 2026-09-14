@@ -146,16 +146,14 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end -}}
 
 {{- define "openwebui-kth-cluster-helm.embeddingsLabels" -}}
-app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.embeddingsName" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- include "openwebui-kth-cluster-helm.embeddingsSelectorLabels" . }}
 app.kubernetes.io/component: embeddings
 app.kubernetes.io/managed-by: {{ .Release.Service }}
 helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- end -}}
 
 {{- define "openwebui-kth-cluster-helm.embeddingsSelectorLabels" -}}
-app.kubernetes.io/name: {{ include "openwebui-kth-cluster-helm.embeddingsName" . }}
-app.kubernetes.io/instance: {{ .Release.Name }}
+{{- toYaml .Values.embeddings.selectorLabels -}}
 {{- end -}}
 
 {{- define "openwebui-kth-cluster-helm.embeddingsServiceAccountName" -}}
