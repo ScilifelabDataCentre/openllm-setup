@@ -9,6 +9,7 @@ This chart deploys Open WebUI with:
 - optional external vLLM connectivity through the OpenAI-compatible API
 - optional external PostgreSQL, Redis, and vector database configuration for safer remote deployments
 - an optional ingress for local or cluster HTTP access
+- OpenTelemetry enabled
 
 ## Default configuration
 
