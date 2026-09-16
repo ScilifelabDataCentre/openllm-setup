@@ -1,0 +1,23 @@
+{{- if and .Values.embeddings.enabled .Values.embeddings.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.embeddingsFullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.embeddingsLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.embeddingsSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 14 }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.embeddings.service.targetPort }}
+{{- end }}
