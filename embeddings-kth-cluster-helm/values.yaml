@@ -40,7 +40,7 @@ image:
   # Pin for reproducibility. Matches the chat backend's pinned tag.
   # If you bump this, re-confirm the embedding flags below still apply
   # (newer vLLM prefers `--runner pooling` over `--task embed`).
-  tag: "v0.10.2"
+  tag: "v0.29.0"
   pullPolicy: IfNotPresent
 
 # -----------------------------------------------------------------------------
