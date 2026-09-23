@@ -14,7 +14,7 @@
 #     ssh sll-m11-$n 'podman load -i /mimer/NOBACKUP/sll_dc/images/vllm-ray-0.24.0-ray2.57.0.tar'
 #   done
 
-FROM docker.io/vllm/vllm-openai:v0.24.0
+FROM docker.io/vllm/vllm-openai:v0.30.0
 
 # Pinned deliberately. 2.57.0 is the version verified to form a healthy
 # multi-node cluster with vLLM 0.24.0 and torch 2.11.0+cu130 on these nodes.
