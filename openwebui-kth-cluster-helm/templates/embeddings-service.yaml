@@ -1,0 +1,18 @@
+{{- if .Values.embeddings.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.embeddingsFullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.embeddingsLabels" . | nindent 4 }}
+spec:
+  type: {{ .Values.embeddings.service.type }}
+  selector:
+    {{- include "openwebui-kth-cluster-helm.embeddingsSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.embeddings.service.port }}
+      targetPort: http
+      protocol: TCP
+{{- end }}
