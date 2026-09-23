@@ -1,0 +1,19 @@
+# deployments/voxtral-small-24b/vllm-config.yaml
+
+# --- Model ---
+model: mistralai/Voxtral-Small-24B-2507
+dtype: bfloat16
+
+# --- Parallelism / devices ---
+# 1 GPU: fits only in FP8/quantized. For bf16 use 2 GPUs with tp=2.
+tensor_parallel_size: 1
+gpu_memory_utilization: 0.90
+
+# --- Context ---
+# Voxtral supports long audio; keep in check with the VRAM budget.
+# Lower this if we hit OOM during CUDA graph capture.
+max_model_len: 32768
+
+# --- Server ---
+host: "0.0.0.0"
+port: 8000
