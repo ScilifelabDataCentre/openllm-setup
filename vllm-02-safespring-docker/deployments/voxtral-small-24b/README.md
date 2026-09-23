@@ -18,7 +18,7 @@ OpenAI-compatible endpoint at http://<host>:8001/v1
     curl http://localhost:8001/v1/chat/completions \
       -H "Content-Type: application/json" \
       -d '{
-        "model": "mistralai/Voxtral-Small-24B-2507",
+        "model": "voxtral-small-24b",
         "messages": [{
           "role": "user",
           "content": [
@@ -31,6 +31,8 @@ OpenAI-compatible endpoint at http://<host>:8001/v1
       }'
 
 ## Notes
+- Served model name (alias used in requests): `voxtral-small-24b`
+  (the full HF id `mistralai/Voxtral-Small-24B-2507` is only used at load time)
 - Endpoint port: 8001 (mapped to container 8000)
 - Video files: extract the audio track first (ffmpeg -i in.mp4 -vn out.wav);
   the model consumes audio only.
