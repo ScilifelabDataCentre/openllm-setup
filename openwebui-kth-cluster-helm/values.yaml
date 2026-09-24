@@ -201,7 +201,7 @@ embeddings:
     name: "embeddings"
   image:
     repository: vllm/vllm-openai
-    tag: "v0.10.2"
+    tag: "v0.30.0"
     pullPolicy: IfNotPresent
   model:
     id: "BAAI/bge-m3"
