@@ -5,7 +5,7 @@ namespace: openllm
 helmCharts:
   - name: opentelemetry-collector
     repo: https://open-telemetry.github.io/opentelemetry-helm-charts
-    version: 0.172.1
+    version: 0.173.1
     releaseName: otel-bridge
     namespace: openllm
     valuesFile: values.yaml
