@@ -7,8 +7,9 @@ resources:
 - backup-cronjob.yaml
 - restore-CronJob.yaml
 - PersistentVolumeClaim.yaml
-- ProtectionSet.yaml
 - NetworkPolicy.yaml
+- application.yaml
+- schedule.yaml
 
 configMapGenerator:
 - files:
