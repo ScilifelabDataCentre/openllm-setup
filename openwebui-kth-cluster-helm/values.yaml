@@ -154,7 +154,7 @@ vectorDatabase:
       value: ""
     image:
       repository: qdrant/qdrant
-      tag: v1.17.1-unprivileged
+      tag: v1.19.1-unprivileged
       pullPolicy: IfNotPresent
     persistence:
       enabled: true
