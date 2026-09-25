@@ -43,41 +43,64 @@ git sparse-checkout set vllm-02-safespring-docker
 git checkout main
 ```
 
+### Create the shared network
+
+```bash
+cd ./vllm-02-safespring-docker/deployments/network
+docker compose up -d
+docker network ls | grep vllm-net
+```
+
 ## Configuration
 
 Copy the .env.example file as .env and edit.
 
 ```bash
-cd ./vllm-02-safespring-docker/vllm-deployment
+cd ./vllm-02-safespring-docker/deployments
 cp ./.env.example .env
 ```
 
 ### Environment variables (.env)
 
-This file defines deployment-specific configuration:
-- which model is loaded
-- how the service is exposed
-- authentication and secrets
-- storage paths
+This file defines configuration hardware-related settings and secrets.
 
 Key settings
 - VLLM_IMAGE_TAG: Docker image version for vLLM. Pin this for reproducibility (avoid latest in production).
-- CONTAINER_NAME: Name of the running container (useful for logs and debugging).
-- VLLM_HOST_PORT: Port exposed on the VM.
-- HF_CACHE_DIR: Directory for Hugging Face cache and model storage. Should be large enough for model weights.
-- VLLM_MODEL: Hugging Face model ID used by vLLM to load the model. Example: Qwen/Qwen3-0.6B
-- SERVED_MODEL_NAME: Give the model a client friendly API contract name. Example: "qwen3-0.6b"
 - VLLM_API_KEY: Required for all API requests. Clients must include: Authorization: Bearer <API_KEY>
+- HF_CACHE_DIR: Directory for Hugging Face cache and model storage. Should be large enough for model weights.
 - HF_TOKEN (optional): Set if you intend to pull private or gated models.
+- GPU assignments can override compose defaults
+- Model service ports can override compose defaults
 
-### vLLM configuration (vllm-config.yaml)
+## Adding a new model deployment
 
-This file defines application-internal behavior of the vLLM server.
+In order to add and configure a new model:
 
-Examples:
-- internal host/port
-- runtime tuning
-- batching, memory, performance settings
+1. Create a sub-directory under ./deployments for the model
+2. Create the following file structure:
+- compose.yaml
+- Dockerfile (only if needed)
+- vllm-config.yaml
+- README.md
+3. Pre-download the model to the host node/VM, for example from Hugginf Face (see below)
+
+### Model deployment files explained
+
+Each model deployment should contain the following files in a dedicated directory for the model.
+
+1. compose.yaml
+A Docker compose file.
+
+2. vllm-config.yaml
+vLLM configuration that specified the model, gives it an alias name, and specifies any model-vLLM specific configuration settings (such as batching, memory, performance, internal host/port settings).
+
+3. A README file that describes how to start, stop, and test the model.
+
+A custom Dockerfile should only be needed if additional packages or modifications need to be made to the vLLM image.
+
+### Start a model service
+
+Follow the instructions in the model's README.
 
 ## Download an LLM model
 
@@ -103,16 +126,14 @@ Verify that the space has been freed up:
 du -sh /data/vllm_models
 ```
 
-## Start the vLLM service
+## Verify a model service
 
-```bash
-docker compose up -d
-```
+Start the vLLM service following instructions in the model README.
 
 Verify it is up and running:
 ```bash
 docker ps
-docker logs vllm_prod -f
+docker logs <container-name> -f
 ```
 
 ## Test it

@@ -9,26 +9,44 @@ OpenAI-compatible endpoint at http://<host>:8001/v1
 - Single GPU works only with a quantized variant; bf16 needs 2 GPUs (tp=2)
 
 ## Deploy
-    cd deployments/voxtral-small-24b
-    docker compose up -d --build
+
+```bash
+cd deployments/voxtral-small-24b
+docker compose up -d --build
+```
 
 ## Test
-    curl http://localhost:8001/v1/models
 
-    curl http://localhost:8001/v1/chat/completions \
-      -H "Content-Type: application/json" \
-      -d '{
-        "model": "voxtral-small-24b",
-        "messages": [{
-          "role": "user",
-          "content": [
-            {"type": "text", "text": "Transcribe this audio."},
-            {"type": "input_audio", "input_audio": {
-              "data": "<base64 audio>", "format": "wav"
-            }}
-          ]
-        }]
-      }'
+```bash
+curl http://localhost:8001/v1/models -H "Authorization: Bearer $VLLM_API_KEY"
+```
+
+Test using a .wav audio file on the client machine:
+```bash
+curl http://localhost:8001/v1/audio/transcriptions \
+  -H "Authorization: Bearer $VLLM_API_KEY" \
+  -F "model=voxtral-small-24b" \
+  -F "file=@/path/to/test.wav"
+```
+
+Test using base64 audio data:
+```bash
+curl http://localhost:8001/v1/chat/completions \
+    -H "Content-Type: application/json" \
+    -H "Authorization: Bearer $VLLM_API_KEY" \
+    -d '{
+    "model": "voxtral-small-24b",
+    "messages": [{
+        "role": "user",
+        "content": [
+        {"type": "text", "text": "Transcribe this audio."},
+        {"type": "input_audio", "input_audio": {
+            "data": "<base64 audio>", "format": "wav"
+        }}
+        ]
+    }]
+    }'
+```
 
 ## Notes
 - Served model name (alias used in requests): `voxtral-small-24b`
