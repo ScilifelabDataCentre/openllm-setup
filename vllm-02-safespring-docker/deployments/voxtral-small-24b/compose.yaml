@@ -26,7 +26,7 @@ services:
     networks:
       - vllm-net
 
-# Attach to the same external network your other models / Open WebUI use
+# Attach to the same external network as other models
 networks:
   vllm-net:
     external: true
