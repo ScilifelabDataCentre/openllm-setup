@@ -32,6 +32,13 @@ webui:
     name: ""
     key: ""
   authEnabled: true
+  emailVerification:
+    enabled: true
+    tokenTTL: "24h"
+    senderMail: "noreply-open-llm@scilifelab.se"
+    gmailCredentialsSecret:
+      name: "openllm-secrets"
+      key: "openwebui-gmail-json-credentials"
   home: /tmp
   corsAllowOrigin: "https://openllm.scilifelab-2-dev.sys.kth.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"

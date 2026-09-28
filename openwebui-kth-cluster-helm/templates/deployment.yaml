@@ -92,6 +92,23 @@ spec:
           {{- $openaiBaseUrls = append $openaiBaseUrls .baseUrl }}
           {{- end }}
           env:
+            {{- if .Values.webui.emailVerification.enabled }}
+            - name: ENABLE_EMAIL_VERIFICATION
+              value: "true"
+            - name: EMAIL_VERIFICATION_TOKEN_TTL
+              value: {{ .Values.webui.emailVerification.tokenTtl | quote }}
+            - name: GMAIL_SENDER_EMAIL
+              value: {{ .Values.webui.emailVerification.senderMail | quote }}
+            - name: GMAIL_DELEGATED_USER
+              value: {{ .Values.webui.emailVerification.senderMail | quote }}
+            - name: EMAIL_VERIFICATION_URL
+              value: {{ .Values.webui.emailVerification.emailVerificationUrl}}
+            - name: GMAIL_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.webui.emailVerification.gmailCredentialsSecret.name | quote }}
+                  key: {{ .Values.webui.emailVerification.gmailCredentialsSecret.key | quote }}
+            {{- end }}
             - name: OLLAMA_BASE_URL
               value: {{ .Values.webui.ollamaBaseUrl | quote }}
             {{- if gt (len $openaiBaseUrls) 0 }}
