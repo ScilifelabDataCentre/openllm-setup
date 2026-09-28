@@ -96,7 +96,7 @@ spec:
             - name: ENABLE_EMAIL_VERIFICATION
               value: "true"
             - name: EMAIL_VERIFICATION_TOKEN_TTL
-              value: {{ .Values.webui.emailVerification.tokenTtl | quote }}
+              value: {{ .Values.webui.emailVerification.tokenTTL | quote }}
             - name: GMAIL_SENDER_EMAIL
               value: {{ .Values.webui.emailVerification.senderMail | quote }}
             - name: GMAIL_DELEGATED_USER
