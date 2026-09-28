@@ -10,6 +10,7 @@ This chart deploys Open WebUI with:
 - optional external vLLM connectivity through the OpenAI-compatible API
 - optional external PostgreSQL, Redis, and vector database configuration for safer remote deployments
 - an optional ingress for local or cluster HTTP access
+- OpenTelemetry enabled
 
 ## Default configuration
 
@@ -21,7 +22,7 @@ The chart defaults currently include:
 - Ollama URL: `set-to-your-ollama-url`
 - vLLM endpoints: none configured
 - persistence: enabled, `ReadWriteOnce`, `5Gi`
-- gateway hostnames: `["openllm.scilifelab-2-dev.sys.kth.se"]`
+- gateway hostnames: `["openllm.gw.scilifelab-2-prod.sys.kth.se", "openllm.scilifelab.se", "open-llm.scilifelab.se"]`
 
 For this deployment, Open WebUI images are built in `https://github.com/ScilifelabDataCentre/open-webui`.
 The image artifacts are published under `ghcr.io/scilifelabdatacentre/open-webui:main`.
