@@ -22,7 +22,7 @@ podSecurityContext:
 
 webui:
   replicaCount: 1
-  image: ghcr.io/scilifelabdatacentre/open-webui:git-01f4282
+  image: ghcr.io/scilifelabdatacentre/open-webui:git-4e36ff9
   imagePullPolicy: IfNotPresent
   port: 8080
   uvicornWorkers: 1
