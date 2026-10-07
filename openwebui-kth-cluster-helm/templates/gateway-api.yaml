@@ -47,11 +47,6 @@ spec:
     - {{ .hostname | quote }}
   parentRefs:
     - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: default
-      namespace: gateway
-      port: 443
-    - group: gateway.networking.k8s.io
       kind: ListenerSet
       name: {{ include "openwebui-kth-cluster-helm.fullname" $ }}-listener
       namespace: {{ include "openwebui-kth-cluster-helm.namespace" $ }}
