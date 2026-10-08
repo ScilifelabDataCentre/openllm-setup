@@ -92,13 +92,14 @@ docs:
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: sha-2c0b0f3
+    tag: sha-d05405c
     pullPolicy: IfNotPresent
   containerPort: 8080
   service:
     port: 8080
   gateway:
     paths:
+      - path: /about
       - path: /use-policy
       - path: /guides
   podSecurityContext:
