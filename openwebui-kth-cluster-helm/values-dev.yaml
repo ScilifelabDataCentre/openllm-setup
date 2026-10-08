@@ -22,7 +22,7 @@ podSecurityContext:
 
 webui:
   replicaCount: 1
-  image: ghcr.io/scilifelabdatacentre/open-webui:git-4e36ff9
+  image: ghcr.io/scilifelabdatacentre/open-webui:git-3f654df
   imagePullPolicy: IfNotPresent
   port: 8080
   uvicornWorkers: 1
@@ -78,7 +78,7 @@ docs:
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: sha-ccb4818
+    tag: sha-d05405c
     pullPolicy: IfNotPresent
   containerPort: 8080
   service:
@@ -87,6 +87,7 @@ docs:
     paths:
       - path: /use-policy
       - path: /guides
+      - path: /about
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:
