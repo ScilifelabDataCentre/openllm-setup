@@ -338,7 +338,10 @@ gateway:
   hostnames:
     - openllm.gw.scilifelab-2-prod.sys.kth.se
     - openllm.scilifelab.se
-    - open-llm.scilifelab.se
+  redirects:
+    - name: open-llm
+      hostname: open-llm.scilifelab.se
+      targetHostname: openllm.scilifelab.se
   listeners:
     - openllm.scilifelab.se
     - open-llm.scilifelab.se
