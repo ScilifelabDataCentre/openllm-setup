@@ -1,0 +1,126 @@
+{{- if .Values.embeddings.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.embeddingsFullname" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.embeddingsLabels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.embeddings.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.embeddingsSelectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "openwebui-kth-cluster-helm.embeddingsSelectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "openwebui-kth-cluster-helm.embeddingsServiceAccountName" . }}
+      {{- with .Values.embeddings.gpu.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.embeddings.gpu.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.embeddings.gpu.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.embeddings.podSecurityContext | nindent 8 }}
+      containers:
+        - name: vllm
+          image: "{{ .Values.embeddings.image.repository }}:{{ .Values.embeddings.image.tag }}"
+          imagePullPolicy: {{ .Values.embeddings.image.pullPolicy }}
+          args:
+            - "--model"
+            - {{ .Values.embeddings.model.id | quote }}
+            - "--served-model-name"
+            - {{ .Values.embeddings.model.servedName | quote }}
+            - "--task"
+            - {{ .Values.embeddings.model.task | quote }}
+            - "--dtype"
+            - {{ .Values.embeddings.model.dtype | quote }}
+            - "--max-model-len"
+            - {{ .Values.embeddings.model.maxModelLen | quote }}
+            - "--gpu-memory-utilization"
+            - {{ .Values.embeddings.model.gpuMemoryUtilization | quote }}
+            {{- range .Values.embeddings.model.extraArgs }}
+            - {{ . | quote }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.embeddings.service.targetPort }}
+          env:
+            - name: HF_HOME
+              value: /data/huggingface
+            - name: HOME
+              value: /data
+            - name: USER
+              value: "vllm"
+            - name: VLLM_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embeddings.apiKey.existingSecret | quote }}
+                  key: {{ .Values.embeddings.apiKey.secretKey | quote }}
+            {{- if .Values.embeddings.huggingface.existingSecret }}
+            - name: HF_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.embeddings.huggingface.existingSecret | quote }}
+                  key: {{ .Values.embeddings.huggingface.secretKey | quote }}
+            {{- end }}
+            {{- with .Values.embeddings.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          resources:
+            requests:
+              cpu: {{ .Values.embeddings.resources.requests.cpu | quote }}
+              memory: {{ .Values.embeddings.resources.requests.memory | quote }}
+            limits:
+              {{ .Values.embeddings.gpu.resourceName }}: {{ .Values.embeddings.gpu.count }}
+              cpu: {{ .Values.embeddings.resources.limits.cpu | quote }}
+              memory: {{ .Values.embeddings.resources.limits.memory | quote }}
+          securityContext:
+            {{- toYaml .Values.embeddings.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /data
+            - name: dshm
+              mountPath: /dev/shm
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: {{ .Values.embeddings.startupProbe.periodSeconds }}
+            failureThreshold: {{ .Values.embeddings.startupProbe.failureThreshold }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.embeddings.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.embeddings.readinessProbe.periodSeconds }}
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.embeddings.livenessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.embeddings.livenessProbe.periodSeconds }}
+      volumes:
+        - name: hf-cache
+          {{- if .Values.embeddings.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "openwebui-kth-cluster-helm.embeddingsPvcName" . }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: {{ .Values.embeddings.dshmSize }}
+{{- end }}

@@ -13,7 +13,8 @@ pull on the hosts, restart. Never edit a host directly.
 |---|---|---|
 | LiteLLM proxy `:4000` + Postgres | `sll-login` | running |
 | `Qwen3-235B-A22B` multi-node | `sll-m11-41` (head, `:8000`) + `sll-m11-42` | running, RDMA enabled |
-| `Qwen/Qwn3-32B` single-node | `sll-m11-38` | running |
+| `Mistral-Large-3-675B-Instruct-2512-NVFP4` multi-node | `sll-m11-39` (head, `:8000`) + `sll-m11-40` | running, RDMA enabled |
+| `Qwen/Qwn3.8-27B` single-node | `sll-m11-38` | running |
 | Exposed to scilifelab infra endpoint | `https://scilifelab-ai.c3se.chalmers.se/v1` | via nginx/TLS to Open WebUI |
 
 ## Node allocation
@@ -23,9 +24,9 @@ to a node list.
 
 | Node | Assigned to | Since |
 |---|---|---|
-| `sll-m11-38` | single-node `Qwen3-32B`** (serves `:8000`)| 2026-08-20 |
-| `sll-m11-39` | free | |
-| `sll-m11-40` | free | |
+| `sll-m11-38` | **single-node `Qwen3.8-27B`** (serves `:8000`)| 2026-08-24 |
+| `sll-m11-39` | **multi-node `Mistral-Large-3-675B-Instruct-2512-NVFP4`** (head, serves `:8000`) | 2026-09-16 |
+| `sll-m11-40` | **multi-node `Mistral-Large-3-675B-Instruct-2512-NVFP4`** (worker) | 2026-09-16 |
 | `sll-m11-41` | **multi-node `qwen3-235b`** (head, serves `:8000`) | 2026-08-20 |
 | `sll-m11-42` | **multi-node `qwen3-235b`** (worker) | 2026-08-20 |
 
