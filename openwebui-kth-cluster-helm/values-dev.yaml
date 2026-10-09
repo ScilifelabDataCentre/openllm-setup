@@ -32,8 +32,16 @@ webui:
     name: ""
     key: ""
   authEnabled: true
+  emailVerification:
+    enabled: true
+    tokenTTL: "24h"
+    senderMail: "noreply-open-llm@scilifelab.se"
+    emailVerificationUrl: "https://openllm.scilifelab-2-dev.sys.kth.se/auth/verify-email"
+    gmailCredentialsSecret:
+      name: "openllm-secrets"
+      key: "openwebui-gmail-json-credentials"
   home: /tmp
-  corsAllowOrigin: "https://openllm.gw.scilifelab-2-prod.sys.kth.se;https://openllm.scilifelab.se;https://open-llm.scilifelab.se"
+  corsAllowOrigin: "https://openllm.scilifelab-2-dev.sys.kth.se"
   userAgent: "openwebui-kth-cluster-helm/0.1.0 (open-llm.scilifelab.se)"
   enableRealtimeChatSave: false
   enableBaseModelsCache: true
@@ -63,22 +71,7 @@ webui:
   readinessPeriodSeconds: 10
   livenessInitialDelaySeconds: 30
   livenessPeriodSeconds: 20
-  extraEnv:
-    # OpenTelemetry Configuration
-    - name: ENABLE_OTEL
-      value: "true"
-    - name: ENABLE_OTEL_TRACES
-      value: "false"
-    - name: ENABLE_OTEL_METRICS
-      value: "true"
-    - name: ENABLE_OTEL_LOGS
-      value: "false"
-    - name: OTEL_SERVICE_NAME
-      value: "open-webui"
-    - name: OTEL_EXPORTER_OTLP_INSECURE
-      value: "true"
-    - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
-      value: "http://openwebui-otel-bridge:4317"
+  extraEnv: []
 
 docs:
   enabled: true
@@ -92,9 +85,9 @@ docs:
     port: 8080
   gateway:
     paths:
-      - path: /about
       - path: /use-policy
       - path: /guides
+      - path: /about
   podSecurityContext:
     runAsNonRoot: true
     seccompProfile:
@@ -329,15 +322,7 @@ service:
 gateway:
   enabled: true
   hostnames:
-    - openllm.gw.scilifelab-2-prod.sys.kth.se
-    - openllm.scilifelab.se
-  redirects:
-    - name: open-llm
-      hostname: open-llm.scilifelab.se
-      targetHostname: openllm.scilifelab.se
-  listeners:
-    - openllm.scilifelab.se
-    - open-llm.scilifelab.se
+    - openllm.scilifelab-2-dev.sys.kth.se
 
 
 networkPolicy:
