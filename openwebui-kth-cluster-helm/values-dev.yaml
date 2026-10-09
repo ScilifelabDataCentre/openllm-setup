@@ -73,6 +73,58 @@ webui:
   livenessPeriodSeconds: 20
   extraEnv: []
 
+
+backups:
+  enabled: true
+  pvc:
+    name: postgresql-backup
+    accessModes:
+      - ReadWriteMany
+    size: 20Gi
+    storageClass: ""
+  image:
+    repository: postgres
+    tag: 18-alpine
+    pullPolicy: IfNotPresent
+  postgresql:
+    host: ""
+    user: ""
+    database: ""
+    secretName: ""
+    passwordKey: ""
+  backup:
+    schedule: "0 19 * * *"
+    retentionDays: 7
+    resources:
+      limits:
+        cpu: 500m
+        memory: 2Gi
+        ephemeral-storage: 500Mi
+      requests:
+        cpu: 500m
+        memory: 2Gi
+        ephemeral-storage: 20Mi
+  restore:
+    suspend: true
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+        ephemeral-storage: 20Mi
+  timeZone: Europe/Stockholm
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  tridentProtect:
+    enabled: true
+    applicationName: app-backup
+    scheduleName: daily-backups
+    appVaultRef: storagegrid-s3-bucket
+    backupRetention: "60"
+    hour: "1"
+    minute: "23"
+    runImmediately: true
+    snapshotRetention: "0"
+
 docs:
   enabled: true
   replicaCount: 1
