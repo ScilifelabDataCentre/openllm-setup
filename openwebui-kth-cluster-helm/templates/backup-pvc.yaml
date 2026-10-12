@@ -1,0 +1,21 @@
+{{- if .Values.backups.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.backups.pvc.name }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.labels" . | nindent 4 }}
+    storage: postgresql-backup
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    {{- toYaml .Values.backups.pvc.accessModes | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.backups.pvc.size }}
+  {{- with .Values.backups.pvc.storageClass }}
+  storageClassName: {{ . | quote }}
+  {{- end }}
+{{- end }}
