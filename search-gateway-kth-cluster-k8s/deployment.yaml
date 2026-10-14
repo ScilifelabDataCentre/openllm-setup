@@ -1,0 +1,67 @@
+# Search gateway: holds every web search until the user approves it.
+# Runs as its own pod next to Open WebUI, inside the cluster only.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search-gateway
+  namespace: openllm
+  labels:
+    app: search-gateway
+spec:
+  # Approvals live in memory: run exactly one pod, also during updates.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: search-gateway
+  template:
+    metadata:
+      labels:
+        app: search-gateway
+    spec:
+      automountServiceAccountToken: false  # the pod never talks to the Kubernetes API
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: search-gateway
+          image: ghcr.io/scilifelabdatacentre/openllm-search-gateway:0.2.0 # need to create the image or provide a different path
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            # Open WebUI's address; approval links for terminals and agents point here.
+            # Dev: the hostname in openwebui-kth-cluster-helm/values-dev.yaml (gateway.hostnames).
+            - name: OPENWEBUI_URL
+              value: "https://openllm.scilifelab-2-dev.sys.kth.se"
+            - name: APPROVALS_MODEL  # function id of the "Search approvals" assistant in Open WebUI
+              value: "search_approvals"
+            - name: SESSION_HOURS  # how long "Approve for this session" lasts
+              value: "8"
+            - name: APPROVAL_EXPIRY_SECONDS
+              value: "900"
+            - name: MAX_WAITING_PER_USER
+              value: "5"
+            - name: MAX_APPROVALS_PER_HOUR
+              value: "30"
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: search-gateway
+                  key: api-key
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 256Mi
