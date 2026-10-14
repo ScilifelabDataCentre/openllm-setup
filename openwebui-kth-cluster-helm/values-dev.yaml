@@ -374,6 +374,9 @@ gateway:
   enabled: true
   hostnames:
     - openllm.scilifelab-2-dev.sys.kth.se
+  listeners:
+    - openllm.scilifelab-2-dev.sys.kth.se
+  redirects: []
 
 
 networkPolicy:
