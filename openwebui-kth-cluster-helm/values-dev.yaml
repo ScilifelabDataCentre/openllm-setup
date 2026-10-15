@@ -71,9 +71,7 @@ webui:
   readinessPeriodSeconds: 10
   livenessInitialDelaySeconds: 30
   livenessPeriodSeconds: 20
-  extraEnv:
-    - name: WEBSOCKET_EVENT_CALLER_TIMEOUT
-      value: "600"  # web search approval dialog: after 10 minutes, fall back to the approval link
+  extraEnv: []
 
 
 backups:
