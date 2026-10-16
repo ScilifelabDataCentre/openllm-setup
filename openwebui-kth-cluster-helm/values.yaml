@@ -24,7 +24,7 @@ webui:
   replicaCount: 1
   name: "SciLifeLab OpenLLM"
   # TODO: update
-  image: ghcr.io/scilifelabdatacentre/open-webui:git-01f4282
+  image: ghcr.io/scilifelabdatacentre/open-webui:git-b587579
   imagePullPolicy: IfNotPresent
   port: 8080
   uvicornWorkers: 1
