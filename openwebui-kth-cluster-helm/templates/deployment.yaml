@@ -92,6 +92,8 @@ spec:
           {{- $openaiBaseUrls = append $openaiBaseUrls .baseUrl }}
           {{- end }}
           env:
+            - name: WEBUI_NAME
+              value: {{ .Values.webui.name | quote }}
             {{- if .Values.webui.emailVerification.enabled }}
             - name: ENABLE_EMAIL_VERIFICATION
               value: "true"
