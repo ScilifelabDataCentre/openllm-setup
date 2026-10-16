@@ -92,6 +92,8 @@ spec:
           {{- $openaiBaseUrls = append $openaiBaseUrls .baseUrl }}
           {{- end }}
           env:
+            - name: WEBUI_NAME
+              value: {{ .Values.webui.name | quote }}
             - name: OLLAMA_BASE_URL
               value: {{ .Values.webui.ollamaBaseUrl | quote }}
             {{- if gt (len $openaiBaseUrls) 0 }}
