@@ -13,6 +13,7 @@ This part of the repository contains definitions of additional functionality cre
 - Request Quota Guard from [oi_request_quota_guard.py](functions/oi_request_quota_guard.py). Restricts the number of user requests per minute and also logs user request usage.
 - Rate Limit Enforcer from [oi_rate_limit_enforcer.py](functions/oi_rate_limit_enforcer.py). Restricts the number of user requests per minute.
 - SciLifeLab Email Verification from [oi_email_verification_callback.py](functions/oi_email_verification_callback.py). An Event Function that sends signup verification emails through the Gmail API and records email ownership in the `email-verified` group. See [Email verification](#email-verification) for setup.
+- SciLifeLab Account Approval Notification from [oi_account_approval_notification.py](functions/oi_account_approval_notification.py). An Event Function that emails users through the Gmail API when an administrator changes their role from `pending` to `user`. See [Account approval notification](#account-approval-notification) for setup.
 
 Activate either the Request Quota Guard or the Rate Limit Enforcer filter, not both.
 
@@ -23,7 +24,7 @@ Activate either the Request Quota Guard or the Rate Limit Enforcer filter, not b
 ### Valves
 
 - [oi_valves.py](functions/oi_valves.py) contains configurable settings.
-- Individual Functions also define their own admin Valves, including the five [email verification valves](#email-verification-valves).
+- Individual Functions also define their own admin Valves, including the five [email verification valves](#email-verification-valves) and the four [account approval valves](#account-approval-valves).
 
 ## Installation
 
@@ -36,7 +37,7 @@ To install:
 3. Paste in the definition of the function in the window.
 4. The Title, Description, and function id will be filled in automatically for you.
 5. Click on Save.
-6. Click the back arrow to return to the overview of Functions and enable the Function. Set filters and actions to Global if they should apply across models. The email verification Event Function only needs to be enabled; it responds to application events.
+6. Click the back arrow to return to the overview of Functions and enable the Function. Set filters and actions to Global if they should apply across models. Event Functions, such as email verification and account approval notification, only need to be enabled; they respond to application events.
 
 To modify a setting (valve) for a function, click on the configuration icon and edit the value.
 
@@ -159,6 +160,44 @@ A resend request sends a new link only when all of these are true:
 
 Cross-site POSTs are rejected using the `Origin` and `Sec-Fetch-Site` headers, in addition to the default `SameSite=Lax` auth cookie. Earlier links remain valid until `token_ttl` expires. Gmail failures show an error page and do not start the cooldown.
 
+## Account approval notification
+
+[oi_account_approval_notification.py](functions/oi_account_approval_notification.py) sends an email when a user's role changes from `pending` to `user`, for example when an administrator approves the account in Admin Panel > Users or a SCIM provider activates it. It is independent of email verification and does not check the `email-verified` group.
+
+Open WebUI's `user.role_updated` event (and SCIM's `user.updated` event) contains only the new role. To recognize approvals, the Function stores the key `scilifelab_awaiting_approval` in the user's `info` field while the user is `pending`:
+
+- when the account is created (`user.created` / `auth.signup`) with the `pending` role;
+- when a user's role changes to `pending`;
+- for all existing `pending` users, the first time each backend process handles any event after loading the Function.
+
+When a marked user's role becomes `user`, the Function removes the marker and sends the email. Role changes for unmarked users, such as demoting an admin to `user`, send nothing. A change from `pending` to `admin` or another role removes the marker without an email. The marker is removed before sending, so repeated events do not send twice; Gmail failures are logged and not retried.
+
+Limitations:
+
+- An account approved before any event reaches the Function after installation may not have been marked yet, so no email is sent for it. Installing the Function, then any action that publishes an event, such as a new signup or an administrator editing a user, marks existing pending users.
+- Role changes Open WebUI makes without publishing an event, such as OAuth role management at sign-in, do not trigger emails.
+
+### Account approval setup
+
+1. Configure the Gmail deployment settings `GMAIL_CREDENTIALS_JSON`, `GMAIL_DELEGATED_USER`, and `GMAIL_SENDER_EMAIL` as described under [email verification deployment settings](#deployment-settings). The Helm chart sets them when `emailVerification.enabled=true`. The Function stays inactive, logging one warning, until all three are set.
+2. Install and enable `oi_account_approval_notification.py` using the [installation steps](#installation). Open WebUI installs the `google-auth` and `requests` packages from its `requirements` header.
+3. Optionally set the `login_url` Valve, or set Open WebUI's `WEBUI_URL`, so the email contains a sign-in link.
+
+No restart is needed; the Function registers no routes.
+
+### Account approval valves
+
+Saved admin Valve values override the optional environment defaults below. Environment defaults are read and validated when the Function is loaded.
+
+| Valve | Built-in default | Environment default | Purpose |
+| --- | --- | --- | --- |
+| `send_on_approval` | `true` | `ACCOUNT_APPROVAL_SEND` | Whether to send approval emails. When `false`, approvals clear the marker without an email; emails are not sent retroactively. |
+| `sender_name` | `SciLifeLab OpenLLM` | `ACCOUNT_APPROVAL_SENDER_NAME` | Display name in the From header and the email text. |
+| `email_subject` | `SciLifeLab OpenLLM: Your account has been approved` | `ACCOUNT_APPROVAL_SUBJECT` | Approval email subject. |
+| `login_url` | empty | `ACCOUNT_APPROVAL_LOGIN_URL` | HTTPS sign-in link included in the email. When empty, Open WebUI's `WEBUI_URL` is used if it is an HTTPS URL; otherwise the email has no link. |
+
+Sender name and subject must be nonempty and contain no control characters; `login_url` must be empty or an HTTPS URL.
+
 ## Tests
 
 Run the unit tests with the optional test dependencies from [pyproject.toml](pyproject.toml):
@@ -168,4 +207,4 @@ cd openwebui-functionality
 uv run --extra test pytest
 ```
 
-Email verification tests cover environment defaults and saved overrides, duration and email header validation, signup sending and pausing, inactivity when deployment settings are missing, email-change revocation, TTL refresh on existing routes, error pages for expired, invalid, and outdated links, resend eligibility, cooldown, and cross-site rejection, and email branding. Gmail and Open WebUI database calls are mocked; no real emails are sent.
+Email verification tests cover environment defaults and saved overrides, duration and email header validation, signup sending and pausing, inactivity when deployment settings are missing, email-change revocation, TTL refresh on existing routes, error pages for expired, invalid, and outdated links, resend eligibility, cooldown, and cross-site rejection, and email branding. Account approval notification tests cover Valve defaults and validation, pending-user marking and backfill, approval emails from role and SCIM events, no email for unmarked users, admin approvals, or paused sending, idempotency, inactivity when deployment settings are missing, sign-in link selection, and email content. Gmail and Open WebUI database calls are mocked; no real emails are sent.
