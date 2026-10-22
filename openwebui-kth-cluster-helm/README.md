@@ -147,6 +147,27 @@ Create the `embeddings-api-key` Secret in the Open WebUI namespace before enabli
 
 The `embeddings.selectorLabels` defaults preserve the selector from the former standalone `embeddings` Helm release. Do not change them for an existing deployment: Kubernetes Deployment selectors are immutable. This lets ArgoCD update the workload in place during the chart migration.
 
+## Email verification
+
+`emailVerification` supplies the deployment settings for the [email verification Function](../openwebui-functionality/README.md#email-verification). It is disabled by default. When `emailVerification.enabled=true`, the chart sets `EMAIL_VERIFICATION_URL`, `GMAIL_DELEGATED_USER`, and `GMAIL_SENDER_EMAIL`. It also reads `GMAIL_CREDENTIALS_JSON` from the Secret named in `emailVerification.gmail.existingSecret`, using the key in `credentialsKey`. Rendering fails if any of these values is missing.
+
+```sh
+kubectl -n openllm create secret generic open-webui-gmail \
+  --from-file=credentials.json=./service-account.json
+```
+
+```yaml
+emailVerification:
+  enabled: true
+  url: https://openllm.scilifelab.se/auth/verify-email
+  gmail:
+    existingSecret: open-webui-gmail
+    delegatedUser: mailbox@example.org
+    senderEmail: no-reply@example.org
+```
+
+Links are signed with `WEBUI_SECRET_KEY` from `openllm-secrets`. To sign them with a separate secret, set `emailVerification.signingSecret.existingSecret`. This renders `EMAIL_VERIFICATION_SECRET`, and changing it invalidates links that are still outstanding. Token TTL, sender name, subject, sending pause, and resend cooldown are Function Valves; configure them in the Open WebUI admin interface rather than through the chart. The Function still has to be installed and enabled in Open WebUI. Changing these settings rolls the pods, which also re-registers the callback routes.
+
 ## ArgoCD deployment
 
 This chart is deployed via ArgoCD on the KTH cluster:
@@ -218,6 +239,7 @@ The main configuration sections in [values.yaml](/Users/nikch187/Projects/sll/op
 - `persistence`: PVC creation, access mode, size, or reuse of an existing claim
 - `podSecurityContext`: pod-level security settings for the workload
 - `webui`: image, port, Ollama URL, OpenAI-compatible API settings, auth, resources, probes, and extra env vars
+- `emailVerification`: callback URL, Gmail service-account Secret, and sender identities for the email verification Function
 - `database`: external database URL, migration control, connection pool tuning, and SQLite fallback tuning
 - `postgresql`: bundled Bitnami PostgreSQL dependency configuration for the primary application database
 - `redis`: Redis URL and connection behavior for multi-user or future multi-replica setups

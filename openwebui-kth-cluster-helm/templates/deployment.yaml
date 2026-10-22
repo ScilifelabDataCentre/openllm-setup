@@ -256,6 +256,28 @@ spec:
               value: {{ .Values.embeddings.rag.batchSize | quote }}
             {{- end }}
             {{- end }}
+            {{- with .Values.emailVerification }}
+            {{- if .enabled }}
+            - name: EMAIL_VERIFICATION_URL
+              value: {{ required "emailVerification.url is required when emailVerification.enabled=true" .url | quote }}
+            - name: GMAIL_CREDENTIALS_JSON
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "emailVerification.gmail.existingSecret is required when emailVerification.enabled=true" .gmail.existingSecret | quote }}
+                  key: {{ .gmail.credentialsKey | quote }}
+            - name: GMAIL_DELEGATED_USER
+              value: {{ required "emailVerification.gmail.delegatedUser is required when emailVerification.enabled=true" .gmail.delegatedUser | quote }}
+            - name: GMAIL_SENDER_EMAIL
+              value: {{ required "emailVerification.gmail.senderEmail is required when emailVerification.enabled=true" .gmail.senderEmail | quote }}
+            {{- if .signingSecret.existingSecret }}
+            - name: EMAIL_VERIFICATION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .signingSecret.existingSecret | quote }}
+                  key: {{ .signingSecret.secretKey | quote }}
+            {{- end }}
+            {{- end }}
+            {{- end }}
             {{- with .Values.webui.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}

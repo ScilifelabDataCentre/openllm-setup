@@ -80,6 +80,29 @@ webui:
     - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
       value: "http://openwebui-otel-bridge:4317"
 
+emailVerification:
+  # Deployment settings for openwebui-functionality/functions/oi_email_verification_callback.py.
+  # The Function stays inactive until url and all Gmail settings are present.
+  enabled: true
+  # Public HTTPS callback URL with a non-root path, e.g.
+  # https://openllm.scilifelab.se/auth/verify-email
+  url: ""
+  gmail:
+    # Secret holding the Google service-account JSON (GMAIL_CREDENTIALS_JSON).
+    existingSecret: "openllm-secrets"
+    credentialsKey: "openwebui-gmail-json-credentials"
+    # Workspace mailbox the service account impersonates.
+    delegatedUser: "noreply-open-llm@scilifelab.se"
+    # Authorized From / Send As address for that mailbox.
+    senderEmail: "noreply-open-llm@scilifelab.se"
+  # Optional dedicated signing secret (EMAIL_VERIFICATION_SECRET).
+  # When unset, the Function signs links with WEBUI_SECRET_KEY.
+  signingSecret:
+    existingSecret: ""
+    secretKey: "secret"
+  # Token TTL, sender name, subject, sending pause, and resend cooldown are
+  # Function Valves; configure them in the Open WebUI admin interface.
+
 docs:
   enabled: true
   replicaCount: 1
