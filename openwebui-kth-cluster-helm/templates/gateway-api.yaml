@@ -22,6 +22,17 @@ spec:
       port: 443
   rules:
     {{- if and .Values.docs.enabled .Values.docs.gateway.paths }}
+    - matches:
+      - path:
+          type: PathPrefix
+          value: /guides
+      filters:
+      - type: RequestRedirect
+        requestRedirect:
+          path:
+            type: ReplaceFullPath
+            replaceFullPath: /docs
+          statusCode: 301
     {{- range .Values.docs.gateway.paths }}
     - matches:
       - path:
