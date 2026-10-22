@@ -93,7 +93,7 @@ docs:
   replicaCount: 1
   image:
     repository: ghcr.io/scilifelabdatacentre/openllm-docs
-    tag: sha-5ca9fb1
+    tag: sha-0ff0da2
     pullPolicy: IfNotPresent
   containerPort: 8080
   service:
