@@ -191,7 +191,3 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "openwebui-kth-cluster-helm.redisServiceName" -}}
 {{- printf "%s-redis" (include "openwebui-kth-cluster-helm.fullname" .) -}}
 {{- end -}}
-
-{{- define "openwebui-kth-cluster-helm.redisBundled" -}}
-{{- if and .Values.redis.enabled (not .Values.redis.url) -}}true{{- end -}}
-{{- end -}}

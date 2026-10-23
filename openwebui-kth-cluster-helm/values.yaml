@@ -126,9 +126,8 @@ database:
     busyTimeout: ""
 
 redis:
-  # Deploy a bundled Redis. Ignored when url is set (external Redis).
+  # Deploy a bundled Redis and point Open WebUI at it.
   enabled: true
-  url: ""
   socketConnectTimeout: "5"
   socketKeepalive: true
   image:

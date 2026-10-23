@@ -1,4 +1,4 @@
-{{- if include "openwebui-kth-cluster-helm.redisBundled" . }}
+{{- if .Values.redis.enabled }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
