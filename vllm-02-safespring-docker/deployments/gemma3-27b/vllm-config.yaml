@@ -1,0 +1,27 @@
+# deployments/gemma3-27b/vllm-config.yaml
+
+# --- Model ---
+model: google/gemma-3-27b-it
+# Alias clients (and Open WebUI) use as the model name in requests
+served_model_name: gemma3-27b
+
+dtype: bfloat16
+
+# --- Parallelism / devices ---
+# 1 GPU: fits only in FP8/quantized. For bf16 use 2 GPUs with tp=2.
+tensor_parallel_size: 1
+gpu_memory_utilization: 0.90
+
+# --- Context ---
+# Lower this if we hit OOM during CUDA graph capture.
+max_model_len: 32768
+
+# Tool calling, (Gemma 3 has no native tool format);
+enable_auto_tool_choice: true
+tool_call_parser: pythonic
+# If adding a tool-aware chat template:
+# chat_template: /app/templates/gemma3_tool.jinja
+
+# --- Server ---
+host: "0.0.0.0"
+port: 8000

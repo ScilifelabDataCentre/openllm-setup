@@ -92,9 +92,18 @@ Each model deployment should contain the following files in a dedicated director
 A Docker compose file.
 
 2. vllm-config.yaml
-vLLM configuration that specified the model, gives it an alias name, and specifies any model-vLLM specific configuration settings (such as batching, memory, performance, internal host/port settings).
+vLLM configuration that specifies the model, gives it an alias name, and specifies any model-vLLM specific configuration settings (such as batching, memory, performance, internal host/port settings).
 
 3. A README file that describes how to start, stop, and test the model.
+
+The manifests can be validated with
+```bash
+cd ./deployments/<model-sub-directory>
+docker compose -f compose.yaml config
+yamllint vllm-config.yaml
+# If the model manifests include a Dockerfile:
+docker run --rm -i hadolint/hadolint < Dockerfile
+```
 
 A custom Dockerfile should only be needed if additional packages or modifications need to be made to the vLLM image.
 
