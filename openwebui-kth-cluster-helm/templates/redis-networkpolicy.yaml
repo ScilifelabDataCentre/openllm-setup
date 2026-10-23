@@ -1,0 +1,23 @@
+{{- if and .Values.networkPolicy.enabled .Values.redis.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.redisServiceName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.redisLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "openwebui-kth-cluster-helm.redisSelectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "openwebui-kth-cluster-helm.selectorLabels" . | nindent 14 }}
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
+{{- end }}
