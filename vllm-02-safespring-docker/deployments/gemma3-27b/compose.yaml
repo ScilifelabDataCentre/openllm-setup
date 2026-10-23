@@ -1,0 +1,29 @@
+# deployments/voxtral-small-24b/compose.yaml
+services:
+  gemma3-27b:
+    image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
+    container_name: gemma3-27b
+    env_file:
+      - ../.env                     # shared env values
+    volumes:
+      - ${HF_CACHE_DIR:-/data/vllm_models}:/root/.cache/huggingface   # shared HF cache
+      - ./vllm-config.yaml:/app/vllm-config.yaml:ro
+    ports:
+      - "${GEMMA3_PORT:-8000}:8000"
+    command: ["--config", "/app/vllm-config.yaml"]
+    ipc: host                       # vLLM needs shared memory for TP
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GEMMA3_GPU:-0}"]   # default: GPU 0
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - vllm-net
+
+# Attach to the same external network as other models
+networks:
+  vllm-net:
+    external: true
