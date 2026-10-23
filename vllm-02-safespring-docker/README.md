@@ -68,7 +68,7 @@ Key settings
 - VLLM_IMAGE_TAG: Docker image version for vLLM. Pin this for reproducibility (avoid latest in production).
 - VLLM_API_KEY: Required for all API requests. Clients must include: Authorization: Bearer <API_KEY>
 - HF_CACHE_DIR: Directory for Hugging Face cache and model storage. Should be large enough for model weights.
-- HF_TOKEN (optional): Set if you intend to pull private or gated models.
+- HF_TOKEN (recommended): Required if you pull private or gated models.
 - GPU assignments can override compose defaults
 - Model service ports can override compose defaults
 
@@ -82,7 +82,7 @@ In order to add and configure a new model:
 - Dockerfile (only if needed)
 - vllm-config.yaml
 - README.md
-3. Pre-download the model to the host node/VM, for example from Hugginf Face (see below)
+3. Pre-download the model to the host node/VM, for example from Hugging Face (see below)
 
 ### Model deployment files explained
 
@@ -109,9 +109,17 @@ Use the Hugging Face CLI to pre-download a model to use.
 Make sure models are stored on the persistent data volume:
 
 ```bash
-export HF_HOME=/data/vllm_models
+# If HF_HOME and HF_TOKEN is set in .env, you can source it:
+set -a
+source .env
+set +a
 hf download Qwen/Qwen3-0.6B
 du -sh /data/vllm_models
+
+# Or explicit auth
+export HF_HOME=/data/vllm_models
+export HF_TOKEN=<mytoken>
+hf download Qwen/Qwen3-0.6B --token="$HF_TOKEN"
 ```
 
 Note: Using hf download stores the model as: models--ORG--NAME
