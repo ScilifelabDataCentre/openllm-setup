@@ -126,9 +126,43 @@ database:
     busyTimeout: ""
 
 redis:
+  # Deploy a bundled Redis. Ignored when url is set (external Redis).
+  enabled: true
   url: ""
   socketConnectTimeout: "5"
   socketKeepalive: true
+  image:
+    repository: redis
+    # >= 6.2 required (GETDEL is used by signup verification)
+    tag: "7.4.2-alpine"
+    pullPolicy: IfNotPresent
+  port: 6379
+  auth:
+    # Managed outside the chart, like WEBUI_SECRET_KEY. Use a URL-safe value (e.g. openssl rand -hex 32).
+    existingSecret: "openllm-secrets"
+    secretKey: "redis-password"
+  # No persistence: Redis only holds ephemeral state (websockets, rate limits, signup challenges).
+  maxmemory: "256mb"
+  resources:
+    requests:
+      cpu: "50m"
+      memory: 128Mi
+    limits:
+      cpu: "500m"
+      memory: 384Mi
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 1000
+    runAsGroup: 1000
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  securityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop:
+        - ALL
 
 vectorDatabase:
   type: "qdrant"

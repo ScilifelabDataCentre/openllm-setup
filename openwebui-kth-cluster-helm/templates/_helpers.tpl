@@ -175,3 +175,23 @@ helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
 {{- define "openwebui-kth-cluster-helm.embeddingsApiBaseUrl" -}}
 {{- printf "http://%s.%s.svc.cluster.local:%v/v1" (include "openwebui-kth-cluster-helm.embeddingsFullname" .) (include "openwebui-kth-cluster-helm.namespace" .) .Values.embeddings.service.port -}}
 {{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.redisLabels" -}}
+app.kubernetes.io/name: redis
+app.kubernetes.io/instance: {{ .Release.Name }}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+helm.sh/chart: {{ printf "%s-%s" .Chart.Name .Chart.Version | replace "+" "_" }}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.redisSelectorLabels" -}}
+app.kubernetes.io/name: redis
+app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.redisServiceName" -}}
+{{- printf "%s-redis" (include "openwebui-kth-cluster-helm.fullname" .) -}}
+{{- end -}}
+
+{{- define "openwebui-kth-cluster-helm.redisBundled" -}}
+{{- if and .Values.redis.enabled (not .Values.redis.url) -}}true{{- end -}}
+{{- end -}}
