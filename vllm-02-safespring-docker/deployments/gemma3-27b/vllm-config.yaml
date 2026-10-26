@@ -8,9 +8,11 @@ served_model_name: gemma3-27b
 dtype: bfloat16
 
 # --- Parallelism / devices ---
-# 1 GPU: fits only in FP8/quantized. For bf16 use 2 GPUs with tp=2.
+# Single H100 (80GB) fits bf16 weights (~55GB) + KV cache comfortably.
+# tp=2 only needed for more KV cache headroom for higher concurrency/context.
 tensor_parallel_size: 1
-gpu_memory_utilization: 0.90
+# The remaining non-vLLM memory needs should not exceed 7% of GPU memory.
+gpu_memory_utilization: 0.93
 
 # --- Context ---
 # Lower this if we hit OOM during CUDA graph capture.

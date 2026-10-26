@@ -5,6 +5,7 @@ Served by vLLM with an OpenAI-compatible endpoint at http://<host>:8000/v1
 
 ## Requirements
 - ~55 GB weights in bf16
+- KV cache: reserve at least ~16 GB (covers 5 concurrent users at 32K context each, ~3 GB/user).
 - Single GPU H100 works
 
 ## Deploy

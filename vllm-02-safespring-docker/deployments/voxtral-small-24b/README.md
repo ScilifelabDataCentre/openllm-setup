@@ -5,8 +5,9 @@ OpenAI-compatible endpoint at http://<host>:8001/v1
 
 ## Requirements
 - vLLM image with `vllm[audio]` extra (see Dockerfile)
-- ~48 GB weights in bf16, ~50+ GB VRAM to serve bf16
-- Single GPU works only with a quantized variant; bf16 needs 2 GPUs (tp=2)
+- ~48 GB weights in bf16
+- KV cache: reserve at least ~10 GB (covers 2 concurrent users at 32K context each, ~5 GB/user).
+- Single GPU H100 works
 
 ## Deploy
 
