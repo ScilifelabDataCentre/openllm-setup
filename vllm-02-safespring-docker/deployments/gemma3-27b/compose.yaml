@@ -1,4 +1,4 @@
-# deployments/voxtral-small-24b/compose.yaml
+# deployments/gemma3-27b/compose.yaml
 services:
   gemma3-27b:
     image: vllm/vllm-openai:${VLLM_IMAGE_TAG}
