@@ -1,5 +1,7 @@
-# Search gateway: holds every web search until the user approves it.
-# Runs as its own pod next to Open WebUI, inside the cluster only.
+# Search gateway v0: holds every web search until the user approves it.
+# Runs as its own pod next to Open WebUI, inside the cluster only. See ../RUNBOOK.md.
+# The image is built in github.com/ScilifelabDataCentre/openllm-search-gateway.
+# dev/ and prod/ set the image tag and OPENWEBUI_URL for each environment.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -27,19 +29,20 @@ spec:
           type: RuntimeDefault
       containers:
         - name: search-gateway
-          image: ghcr.io/scilifelabdatacentre/openllm-search-gateway:0.2.0 # need to create the image or provide a different path
+          image: ghcr.io/scilifelabdatacentre/openllm-search-gateway:set-by-dev-or-prod
           ports:
             - name: http
               containerPort: 8000
           env:
             # Open WebUI's address; approval links for terminals and agents point here.
-            # Dev: the hostname in openwebui-kth-cluster-helm/values-dev.yaml (gateway.hostnames).
             - name: OPENWEBUI_URL
-              value: "https://openllm.scilifelab-2-dev.sys.kth.se"
+              value: "set-by-dev-or-prod"
             - name: APPROVALS_MODEL  # function id of the "Search approvals" assistant in Open WebUI
               value: "search_approvals"
             - name: SESSION_HOURS  # how long "Approve for this session" lasts
               value: "8"
+            - name: SEARCH_ENGINE  # the one engine approved searches go to: duckduckgo, bing, ... (never "auto")
+              value: "duckduckgo"
             - name: APPROVAL_EXPIRY_SECONDS
               value: "900"
             - name: MAX_WAITING_PER_USER

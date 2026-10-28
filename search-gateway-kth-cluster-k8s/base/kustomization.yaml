@@ -1,0 +1,8 @@
+# The search gateway, the same for every environment.
+# Deploy one of the environments instead: kubectl apply -k ../dev (or ../prod).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
