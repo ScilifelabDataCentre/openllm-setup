@@ -396,6 +396,9 @@ gateway:
   listeners:
     - openllm.scilifelab.se
     - open-llm.scilifelab.se
+  clientSettings:
+    enabled: true
+    maxBodySize: 250m
 
 
 networkPolicy:

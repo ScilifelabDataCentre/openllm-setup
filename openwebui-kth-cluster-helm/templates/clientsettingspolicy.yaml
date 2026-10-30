@@ -1,0 +1,14 @@
+{{- if and .Values.gateway.enabled .Values.gateway.clientSettings.enabled }}
+apiVersion: gateway.nginx.org/v1alpha1
+kind: ClientSettingsPolicy
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.fullname" . }}-client-settings
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+spec:
+  targetRef:
+    group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: {{ include "openwebui-kth-cluster-helm.fullname" . }}
+  body:
+    maxSize: {{ .Values.gateway.clientSettings.maxBodySize | quote }}
+{{- end }}
