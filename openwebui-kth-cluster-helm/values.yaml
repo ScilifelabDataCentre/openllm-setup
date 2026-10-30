@@ -87,6 +87,8 @@ webui:
       value: "true"
     - name: OTEL_METRICS_EXPORTER_OTLP_ENDPOINT
       value: "http://openwebui-otel-bridge:4317"
+    - name: WEBSOCKET_EVENT_CALLER_TIMEOUT
+      value: "600"  # web search approval dialog: after 10 minutes, fall back to the approval link
 
 docs:
   enabled: true

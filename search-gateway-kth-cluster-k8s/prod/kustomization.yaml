@@ -1,0 +1,26 @@
+# Production. Fill in the REPLACE value and check the namespace before the first deploy (RUNBOOK.md, section 11).
+# Deploy: kubectl apply -k search-gateway-kth-cluster-k8s/prod
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: openllm  # the namespace production Open WebUI runs in: check it
+resources:
+  - ../base
+images:
+  - name: ghcr.io/scilifelabdatacentre/openllm-search-gateway
+    newTag: "1.0.0"  # a release: tag v1.0.0 in openllm-search-gateway builds image 1.0.0
+patches:
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: search-gateway
+      spec:
+        template:
+          spec:
+            containers:
+              - name: search-gateway
+                env:
+                  - name: OPENWEBUI_URL
+                    value: "https://openllm.scilifelab.se"
+                  # SEARCH_ENGINE comes from base/ (duckduckgo). To use another engine here,
+                  # add it like dev/ does.
