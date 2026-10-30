@@ -1,0 +1,5 @@
+interface:
+  display_name: "Create Open WebUI Function"
+  short_description: "Scaffold a new Pipe, Filter, Action, or Event Function"
+policy:
+  allow_implicit_invocation: true
