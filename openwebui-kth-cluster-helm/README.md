@@ -7,8 +7,9 @@ This chart deploys Open WebUI with:
 - an optional bundled PostgreSQL dependency for the primary application database
 - a bundled Qdrant service as the default vector database backend
 - a bundled BGE-M3 vLLM embeddings service for RAG
+- a bundled Redis for shared state (websockets, rate limits, signup verification)
 - optional external vLLM connectivity through the OpenAI-compatible API
-- optional external PostgreSQL, Redis, and vector database configuration for safer remote deployments
+- optional external PostgreSQL and vector database configuration for safer remote deployments
 - an optional ingress for local or cluster HTTP access
 - OpenTelemetry enabled
 
@@ -207,7 +208,7 @@ helm upgrade --install open-webui ./openwebui-kth-cluster-helm \
   -f ./openwebui-kth-cluster-helm/values-local.yaml
 ```
 
-Keep secrets and local-only overrides in `values-local.yaml`, which is gitignored. This includes `database.url`, `redis.url`, and secret references such as `webui.openaiApiKeysSecret`.
+Keep secrets and local-only overrides in `values-local.yaml`, which is gitignored. This includes `database.url` and secret references such as `webui.openaiApiKeysSecret`.
 
 ## Values overview
 
@@ -220,7 +221,7 @@ The main configuration sections in [values.yaml](/Users/nikch187/Projects/sll/op
 - `webui`: image, port, Ollama URL, OpenAI-compatible API settings, auth, resources, probes, and extra env vars
 - `database`: external database URL, migration control, connection pool tuning, and SQLite fallback tuning
 - `postgresql`: bundled Bitnami PostgreSQL dependency configuration for the primary application database
-- `redis`: Redis URL and connection behavior for multi-user or future multi-replica setups
+- `redis`: bundled Redis deployment (`redis.enabled`) and connection behavior
 - `vectorDatabase`: vector backend selection, bundled Qdrant deployment, auth, and tuning
 - `embeddings`: bundled vLLM embeddings deployment, GPU scheduling, model cache, API key, and RAG integration
 - `backups`: PostgreSQL dump, retention, recovery, PVC, and Trident Protect schedule configuration
@@ -230,15 +231,26 @@ The main configuration sections in [values.yaml](/Users/nikch187/Projects/sll/op
 - `tmpVolume`: `/tmp` emptyDir mount enablement
 - `staticVolume`: writable `/app/backend/open_webui/static` mount for non-root deployments
 
-Manage `WEBUI_SECRET_KEY` in the `openllm-secrets` Secret before production use. If any external vLLM endpoint requires authentication, also provide `webui.openaiApiKeysSecret`.
+Manage `WEBUI_SECRET_KEY` and `redis-password` in the `openllm-secrets` Secret before production use. If any external vLLM endpoint requires authentication, also provide `webui.openaiApiKeysSecret`.
 
 If you scale beyond one pod, also ensure:
 
 - `database.url` points to PostgreSQL, not SQLite
-- `redis.url` is set
+- `redis.enabled` is true
 - `WEBUI_SECRET_KEY` is identical across replicas
 
 The bundled PostgreSQL dependency is only for the main relational database in this chart. Vector storage uses the bundled Qdrant service by default.
+
+## Redis
+
+With `redis.enabled: true`, the chart deploys a single Redis pod and points Open WebUI at it
+(`REDIS_URL` and `WEBSOCKET_MANAGER=redis`). Redis only holds ephemeral state, so it runs without persistence;
+restarting it only makes in-progress signups re-verify. Setting `redis.enabled: false` falls back to
+per-pod in-memory state, which only works with one replica and one uvicorn worker.
+
+The password is read from the `redis-password` key of `openllm-secrets` (`redis.auth.*`) and stored in bitwarden. 
+
+A NetworkPolicy allows ingress to Redis only from the Open WebUI pods.
 
 ## Network policy
 

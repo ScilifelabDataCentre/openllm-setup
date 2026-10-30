@@ -17,7 +17,7 @@ spec:
     spec:
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if or (and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql) (and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled) }}
+      {{- if or (and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql) (and (eq .Values.vectorDatabase.type "qdrant") .Values.vectorDatabase.qdrant.enabled) .Values.redis.enabled }}
       initContainers:
         {{- if and .Values.postgresql.enabled (not .Values.database.url) .Values.database.waitForBundledPostgresql }}
         - name: wait-for-postgresql
@@ -79,6 +79,30 @@ spec:
                   name: {{ include "openwebui-kth-cluster-helm.qdrantSecretName" . | quote }}
                   key: {{ include "openwebui-kth-cluster-helm.qdrantSecretKey" . | quote }}
             {{- end }}
+        {{- end }}
+        {{- if .Values.redis.enabled }}
+        - name: wait-for-redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.webui.initContainerSecurityContext | nindent 12 }}
+          command:
+            - /bin/sh
+            - -ec
+            - |
+              until [ "$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" ping 2>/dev/null)" = "PONG" ]; do
+                sleep 2
+              done
+          env:
+            - name: REDIS_HOST
+              value: {{ include "openwebui-kth-cluster-helm.redisServiceName" . | quote }}
+            - name: REDIS_PORT
+              value: {{ .Values.redis.port | quote }}
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret | quote }}
+                  key: {{ .Values.redis.auth.secretKey | quote }}
         {{- end }}
       {{- end }}
       containers:
@@ -194,9 +218,17 @@ spec:
             - name: DATABASE_SQLITE_PRAGMA_BUSY_TIMEOUT
               value: {{ .Values.database.sqlite.busyTimeout | quote }}
             {{- end }}
-            {{- if .Values.redis.url }}
+            {{- if .Values.redis.enabled }}
+            # Must precede REDIS_URL so Kubernetes expands $(SLL_REDIS_PASSWORD).
+            - name: SLL_REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.redis.auth.existingSecret | quote }}
+                  key: {{ .Values.redis.auth.secretKey | quote }}
             - name: REDIS_URL
-              value: {{ .Values.redis.url | quote }}
+              value: {{ printf "redis://:$(SLL_REDIS_PASSWORD)@%s.%s.svc.cluster.local:%v/0" (include "openwebui-kth-cluster-helm.redisServiceName" .) (include "openwebui-kth-cluster-helm.namespace" .) .Values.redis.port | quote }}
+            - name: WEBSOCKET_MANAGER
+              value: "redis"
             {{- end }}
             {{- if .Values.redis.socketConnectTimeout }}
             - name: REDIS_SOCKET_CONNECT_TIMEOUT

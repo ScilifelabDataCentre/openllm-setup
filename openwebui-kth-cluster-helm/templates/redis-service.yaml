@@ -1,0 +1,17 @@
+{{- if .Values.redis.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "openwebui-kth-cluster-helm.redisServiceName" . }}
+  namespace: {{ include "openwebui-kth-cluster-helm.namespace" . }}
+  labels:
+    {{- include "openwebui-kth-cluster-helm.redisLabels" . | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "openwebui-kth-cluster-helm.redisSelectorLabels" . | nindent 4 }}
+  ports:
+    - name: tcp-redis
+      port: {{ .Values.redis.port }}
+      targetPort: redis
+{{- end }}
