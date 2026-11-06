@@ -1,0 +1,16 @@
+# deployments/network/compose.yaml
+# Bootstrap: shared docker network used by all model deployments
+# Run once: docker compose up -d
+services:
+  network-init:
+    image: alpine
+    command: ["true"]        # no-op container just to give compose a service
+    restart: "no"
+    networks:
+      - vllm-net
+
+networks:
+  vllm-net:
+    name: vllm-net           # fixed name, not project-prefixed
+    driver: bridge
+    # attachable: true       # uncomment if other compose stacks attach by name

@@ -1,0 +1,30 @@
+# deployments/voxtral-small-24b/vllm-config.yaml
+
+# --- Model ---
+model: mistralai/Voxtral-Small-24B-2507
+# Alias clients (and Open WebUI) use as the model name in requests
+served_model_name: voxtral-small-24b
+
+# Voxtral ships Mistral-format weights (params.json / tekken tokenizer):
+# pin these explicitly instead of relying on auto-detection
+tokenizer_mode: mistral
+config_format: mistral
+load_format: mistral
+
+dtype: bfloat16
+
+# --- Parallelism / devices ---
+# Single H100 (80GB) fits bf16 weights
+# tp=2 only needed for more KV cache headroom for higher concurrency/context.
+tensor_parallel_size: 1
+# The remaining non-vLLM memory needs should not exceed 7% of GPU memory.
+gpu_memory_utilization: 0.93
+
+# --- Context ---
+# Voxtral supports long audio; keep in check with the VRAM budget.
+# Lower this if we hit OOM during CUDA graph capture.
+max_model_len: 32768
+
+# --- Server ---
+host: "0.0.0.0"
+port: 8000

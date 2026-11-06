@@ -213,7 +213,13 @@ async def test_existing_routes_reload_ttl_and_verify_while_sending_paused(callba
     callback.Groups.add_users_to_group = AsyncMock(return_value=True)
     assert (await get(token)).status_code == 200
     callback.Groups.add_users_to_group.assert_not_awaited()
-    assert (await post(request)).status_code == 200
+    response = await post(request)
+    assert response.status_code == 200
+    assert b"Email verified. Account waiting for admin approval." in response.body
+    assert b"Your email has been verified." in response.body
+    assert b"Your information will now be reviewed by the administrators." in response.body
+    assert b"You will receive a confirmation email once your account has been approved." in response.body
+    assert b"Note that this may take several working days." in response.body
     callback.Groups.add_users_to_group.assert_awaited_once_with("verified", ["user-1"])
     assert event.valves.send_on_signup is False
     assert callback.Functions.get_function_valves_by_id.await_count == 4
@@ -390,6 +396,12 @@ async def test_resend_refused_without_sending(callback, case, status):
         response = await endpoint(browser_request())
         assert response.status_code == status
         assert b"<form" not in response.body
+        if case == "verified":
+            assert b"Email verified. Account waiting for admin approval." in response.body
+            assert b"Your email has been verified." in response.body
+            assert b"Your information will now be reviewed by the administrators." in response.body
+            assert b"You will receive a confirmation email once your account has been approved." in response.body
+            assert b"Note that this may take several working days." in response.body
     event.send_verification_email.assert_not_called()
 
 
