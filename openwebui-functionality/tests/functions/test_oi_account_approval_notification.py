@@ -29,7 +29,7 @@ def approval(monkeypatch, request):
 
     for name in ("open_webui", "open_webui.models"):
         monkeypatch.setitem(sys.modules, name, ModuleType(name))
-    for name, symbol in (("config", "Config"), ("users", "Users")):
+    for name, symbol in (("config", "Config"), ("users", "Users"), ("groups", "Groups")):
         module_name = f"open_webui.models.{name}"
         dependency = ModuleType(module_name)
         setattr(dependency, symbol, MagicMock())
@@ -40,6 +40,9 @@ def approval(monkeypatch, request):
     module = importlib.util.module_from_spec(spec)
     monkeypatch.setitem(sys.modules, spec.name, module)
     spec.loader.exec_module(module)
+    module.Groups.get_group_by_name = AsyncMock(return_value=SimpleNamespace(id="verified-group"))
+    module.Groups.get_groups_by_member_id = AsyncMock(return_value=[])
+    module.Groups.add_users_to_group = AsyncMock(return_value=True)
     module.Config.get = AsyncMock(return_value="https://example.org")
     module.Users.update_user_by_id = AsyncMock()
     module.Users.get_users = AsyncMock(return_value={"users": [], "total": 0})
@@ -120,6 +123,8 @@ async def test_marked_pending_user_approved_receives_email(approval, name, paylo
     event.send_approval_email.assert_called_once_with(
         "user@example.org", "Ada", "https://example.org"
     )
+    approval.Groups.get_group_by_name.assert_awaited_once_with("account-verified")
+    approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
     # The marker is cleared, preserving unrelated info.
     assert saved_info(approval) == {"other": 1}
 
@@ -131,6 +136,7 @@ async def test_repeated_event_sends_once(approval):
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     assert event.send_approval_email.call_count == 1
+    approval.Groups.add_users_to_group.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -140,6 +146,7 @@ async def test_unmarked_user_role_change_sends_nothing(approval):
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     event.send_approval_email.assert_not_called()
     approval.Users.update_user_by_id.assert_not_called()
+    approval.Groups.add_users_to_group.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -171,10 +178,11 @@ async def test_pending_to_admin_clears_marker_without_email(approval):
 
 
 @pytest.mark.asyncio
-async def test_paused_sending_clears_marker_without_email(approval):
+async def test_paused_sending_adds_group_and_clears_marker_without_email(approval):
     event = make_event(approval, make_user("user", marked=True))
     event.valves = event.Valves(send_on_approval=False)
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
     event.send_approval_email.assert_not_called()
     assert saved_info(approval) == {}
 
@@ -262,3 +270,48 @@ def test_email_without_link(approval, monkeypatch):
     body = sent_message(approval, monkeypatch, "").get_content()
     assert "You can now sign in." in body
     assert "https://" not in body
+
+
+@pytest.mark.asyncio
+async def test_existing_membership_is_preserved(approval):
+    approval.Groups.get_groups_by_member_id.return_value = [
+        SimpleNamespace(id="other-group"), SimpleNamespace(id="verified-group")
+    ]
+    event = make_event(approval, make_user("user", marked=True))
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Groups.add_users_to_group.assert_not_awaited()
+    event.send_approval_email.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure", ["missing", "failed", "exception"])
+async def test_group_failure_preserves_marker_for_retry(approval, failure):
+    user = make_user("user", marked=True)
+    event = make_event(approval, user)
+    if failure == "missing":
+        approval.Groups.get_group_by_name.return_value = None
+    elif failure == "failed":
+        approval.Groups.add_users_to_group.return_value = False
+    else:
+        approval.Groups.add_users_to_group.side_effect = RuntimeError("Database unavailable")
+    with pytest.raises(RuntimeError):
+        await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    assert user.info[approval.PENDING_MARKER] is True
+    approval.Users.update_user_by_id.assert_not_awaited()
+    event.send_approval_email.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role,marked", [("pending", False), ("admin", True), ("user", False)])
+async def test_non_approvals_do_not_assign_group(approval, role, marked):
+    event = make_event(approval, make_user(role, marked=marked))
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Groups.get_group_by_name.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_email_does_not_prevent_group_assignment(approval):
+    event = make_event(approval, make_user("user", marked=True, email=""))
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
+    event.send_approval_email.assert_not_called()

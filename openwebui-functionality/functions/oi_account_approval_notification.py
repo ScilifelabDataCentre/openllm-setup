@@ -2,9 +2,9 @@
 title: SciLifeLab Account Approval Notification
 oi_type: event
 function_id: account_approval_notification
-description: Email users via the Gmail API when their role changes from pending to user.
+description: Add approved users to account-verified and email them via the Gmail API.
 author: SciLifeLab
-version: 0.1.0
+version: 0.2.0
 requirements: google-auth,requests
 
 Required Kubernetes environment variables (the Function stays inactive
@@ -23,7 +23,8 @@ Open WebUI's role events carry only the new role. The Function therefore
 records a marker in the user's info while the user is pending (on account
 creation, on a change to pending, and for all pending users when each
 backend process first handles an event) and emails only marked users whose role
-becomes "user". Demotions such as admin -> user send nothing.
+becomes "user". Approved users are first added to the existing account-verified
+group, even when emails are paused. Demotions such as admin -> user do nothing.
 """
 
 import asyncio
@@ -42,6 +43,7 @@ from google.oauth2 import service_account
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, field_validator
 
 from open_webui.models.config import Config
+from open_webui.models.groups import Groups
 from open_webui.models.users import Users
 
 log = logging.getLogger(__name__)
@@ -54,6 +56,7 @@ REQUIRED_SETTINGS = (
 )
 # Key in the user's info JSON marking an account that awaits approval.
 PENDING_MARKER = "scilifelab_awaiting_approval"
+GROUP_NAME = "account-verified"
 
 
 class Event:
@@ -182,6 +185,17 @@ class Event:
             # Approved straight to admin, or another role: no email.
             await self.set_marker(user, False)
             return
+        # Add membership without replacing the user's other groups. Keep the
+        # marker on failure so a later role event can retry the approval.
+        group = await Groups.get_group_by_name(GROUP_NAME)
+        if group is None:
+            raise RuntimeError(f"Missing account approval group '{GROUP_NAME}'")
+        memberships = await Groups.get_groups_by_member_id(user.id)
+        if not any(item.id == group.id for item in memberships):
+            result = await Groups.add_users_to_group(group.id, [user.id])
+            if not result:
+                raise RuntimeError("Unable to save account approval group membership")
+
         if not self.valves.send_on_approval:
             log.info("Approval email paused; not notifying user id %s", user.id)
             await self.set_marker(user, False)
