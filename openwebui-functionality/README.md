@@ -92,6 +92,8 @@ sequenceDiagram
 
 The confirmation, success, and error pages use Open WebUI-style layouts with browser-preference light/dark colors and a link back to Open WebUI. They load no external resources.
 
+The verification success page and the resend response for already-verified pending accounts explain that the account is waiting for administrator review, that a confirmation email will follow approval, and that review may take several working days. Approval and its confirmation email are handled separately from this Function.
+
 When a link is expired, invalid, missing its token, or was issued for a previous email address, both the link and the **Verify email** submission return an HTTP 400 error page with a **Request a new verification email** button. The button opens the [resend page](#resending-verification-emails), which applies the usual session and eligibility checks. Other failures, such as a deleted account or a missing `email-verified` group, show an error page without the button.
 
 ### Setup

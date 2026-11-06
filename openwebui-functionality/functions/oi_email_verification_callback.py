@@ -586,9 +586,11 @@ class Event:
         memberships = await Groups.get_groups_by_member_id(user.id)
         if any(item.id == group.id for item in memberships):
             return page(
-                "Email already verified",
-                "<p>Your email address has already been verified.</p>"
-                "<p>Your account is still awaiting administrator approval.</p>",
+                "Email verified. Account waiting for admin approval.",
+                "<p>Your email has been verified.</p>"
+                "<p>Your information will now be reviewed by the administrators. "
+                "You will receive a confirmation email once your account has been approved. "
+                "Note that this may take several working days.</p>",
             )
         if not self.valves.send_on_signup:
             return page(
@@ -703,9 +705,11 @@ class Event:
             log.info("Verified email ownership for user id %s", user.id)
 
         return page(
-            "Email verified",
-            "<p>Your email address has been verified.</p>"
-            "<p>Your account is still awaiting administrator approval.</p>",
+            "Email verified. Account waiting for admin approval.",
+            "<p>Your email has been verified.</p>"
+            "<p>Your information will now be reviewed by the administrators. "
+            "You will receive a confirmation email once your account has been approved. "
+            "Note that this may take several working days.</p>",
         )
 
     def send_verification_email(self, recipient: str, link: str):
