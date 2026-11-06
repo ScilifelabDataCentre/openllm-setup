@@ -1,0 +1,5 @@
+interface:
+  display_name: "Sync Open WebUI Function Tests"
+  short_description: "Review and update tests after function changes"
+policy:
+  allow_implicit_invocation: true

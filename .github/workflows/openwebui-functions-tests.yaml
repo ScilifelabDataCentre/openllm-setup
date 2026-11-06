@@ -1,0 +1,29 @@
+name: Open WebUI Function tests
+
+on:
+  push:
+    paths:
+      - "openwebui-functionality/**"
+      - ".github/workflows/openwebui-functions-tests.yaml"
+  pull_request:
+    paths:
+      - "openwebui-functionality/**"
+      - ".github/workflows/openwebui-functions-tests.yaml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python 3.11
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: openwebui-functionality
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --locked --extra test pytest

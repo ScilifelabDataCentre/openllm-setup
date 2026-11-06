@@ -1,0 +1,5 @@
+interface:
+  display_name: "Sync Open WebUI Function Docs"
+  short_description: "Keep function README guidance aligned with code"
+policy:
+  allow_implicit_invocation: true

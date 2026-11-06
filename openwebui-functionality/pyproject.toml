@@ -10,6 +10,10 @@ dependencies = [
 test = [
     "pytest",
     "pytest-asyncio",
+    "fastapi",
+    "google-auth",
+    "requests",
+    "itsdangerous",
 ]
 
 [tool.pytest.ini_options]
