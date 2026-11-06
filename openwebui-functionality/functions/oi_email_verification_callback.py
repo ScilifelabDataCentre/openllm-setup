@@ -190,7 +190,7 @@ def page(title: str, content: str, *, status_code: int = 200) -> HTMLResponse:
     <section class="verification" aria-labelledby="verification-title">
       <h1 id="verification-title">{html.escape(title)}</h1>
       {content}
-      <p class="back-link"><a href="/">Back to Open WebUI</a></p>
+      <p class="back-link"><a href="/">Back to SciLifeLab OpenLLM</a></p>
     </section>
   </main>
 </body>
