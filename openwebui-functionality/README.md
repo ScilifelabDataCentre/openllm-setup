@@ -15,7 +15,9 @@ This part of the repository contains definitions of additional functionality cre
 - Request Quota Guard from [oi_request_quota_guard.py](functions/oi_request_quota_guard.py). Restricts the number of user requests per minute and also logs user request usage.
 - Rate Limit Enforcer from [oi_rate_limit_enforcer.py](functions/oi_rate_limit_enforcer.py). Restricts the number of user requests per minute.
 - SciLifeLab Email Verification from [oi_email_verification_callback.py](functions/oi_email_verification_callback.py). An Event Function that sends signup verification emails through the Gmail API and records email ownership in the `email-verified` group. See [Email verification](#email-verification) for setup.
-- SciLifeLab Account Approval Notification from [oi_account_approval_notification.py](functions/oi_account_approval_notification.py). An Event Function that adds users to `account-verified` and emails them through the Gmail API when an administrator changes their role from `pending` to `user`. See [Account approval notification](#account-approval-notification) for setup.
+- SciLifeLab Account Approval Notification from [oi_account_approval_notification.py](functions/oi_account_approval_notification.py). An Event Function that adds users to `account-verified` and emails them through the Gmail API when an administrator changes their role from `pending` to `user`, and by default undoes approvals of users who have not submitted the registration questionnaire. See [Account approval notification](#account-approval-notification) for setup.
+
+- SciLifeLab Registration Questionnaire from [oi_registration_questionnaire.py](functions/oi_registration_questionnaire.py). An Event Function serving a questionnaire about affiliation and planned use to pending users and storing the answers in `whale-auth-tools`. See [Registration questionnaire](#registration-questionnaire).
 
 Activate either the Request Quota Guard or the Rate Limit Enforcer filter, not both.
 
@@ -26,7 +28,7 @@ Activate either the Request Quota Guard or the Rate Limit Enforcer filter, not b
 ### Valves
 
 - [oi_valves.py](functions/oi_valves.py) contains configurable settings.
-- Individual Functions also define their own admin Valves, including the five [email verification valves](#email-verification-valves) and the four [account approval valves](#account-approval-valves).
+- Individual Functions also define their own admin Valves, including the five [email verification valves](#email-verification-valves) and the five [account approval valves](#account-approval-valves).
 
 ## Installation
 
@@ -176,6 +178,12 @@ Open WebUI's `user.role_updated` event (and SCIM's `user.updated` event) contain
 
 When a marked user's role becomes `user`, the Function adds them to `account-verified`, preserves their other group memberships, removes the marker, and sends the email. Group assignment also happens when emails are paused or the user has no email address. Existing membership is left unchanged. If the group is missing or assignment fails, processing fails before sending email and the marker remains for a later role event to retry; there is no automatic retry. Role changes for unmarked users, such as demoting an admin to `user`, neither assign the group nor send email. A change from `pending` to `admin` or another role removes the marker without an email. The marker is removed before sending, so repeated events do not send twice; Gmail failures are logged and not retried.
 
+### Questionnaire requirement
+
+With the `require_questionnaire` Valve on (the default), users must submit the [registration questionnaire](#registration-questionnaire) before they can be approved. When a marked user's role becomes `user` and their `info` has no `scilifelab_questionnaire` entry, the Function sets the role back to `pending`, keeps the approval marker, and neither assigns `account-verified` nor sends an email. It logs a warning with the user ID. Approving the user again after they submit the questionnaire completes normally.
+
+Open WebUI events cannot block a role change, so the approval is undone after the fact, normally within moments. The administrator's user list shows the user as `user` until it is refreshed. Approvals straight to `admin` and role changes for unmarked users, such as accounts approved before the Function was installed, are not checked. Turn the Valve off, or install the questionnaire Function first, before enabling this in an environment without the questionnaire; otherwise no pending user can be approved.
+
 Limitations:
 
 - An account approved before any event reaches the Function after installation may not have been marked yet, so neither group assignment nor email occurs for it. Installing the Function, then any action that publishes an event, such as a new signup or an administrator editing a user, marks existing pending users.
@@ -200,6 +208,7 @@ Saved admin Valve values override the optional environment defaults below. Envir
 | `sender_name` | `SciLifeLab OpenLLM` | `ACCOUNT_APPROVAL_SENDER_NAME` | Display name in the From header and the email text. |
 | `email_subject` | `SciLifeLab OpenLLM: Your account has been approved` | `ACCOUNT_APPROVAL_SUBJECT` | Approval email subject. |
 | `login_url` | empty | `ACCOUNT_APPROVAL_LOGIN_URL` | HTTPS sign-in link included in the email. When empty, Open WebUI's `WEBUI_URL` is used if it is an HTTPS URL; otherwise the email has no link. |
+| `require_questionnaire` | `true` | `ACCOUNT_APPROVAL_REQUIRE_QUESTIONNAIRE` | Return users approved to `user` without a registration questionnaire submission to `pending`, without group membership or email. See [Questionnaire requirement](#questionnaire-requirement). |
 
 Sender name and subject must be nonempty and contain no control characters; `login_url` must be empty or an HTTPS URL.
 
@@ -286,6 +295,120 @@ state, replay, expiry, malformed and oversized payloads, service failure, origin
 and the missing-Function SPA fallback. Chart proxy tests cover routing and exceptions
 with the real pinned NGINX image and an isolated fake backend.
 
+## Registration questionnaire
+
+The `registration_questionnaire` Event Function asks newly registered users for
+the information administrators use to decide on approval. It serves a form at
+`/auth/registration-questionnaire` with these questions:
+
+- Which university or organisation are you affiliated to? (free text)
+- Which position(s) do you hold? (PhD student, Postdoc, PI, Research engineer,
+  Systems developer, Data steward, Bioinformatician, Other)
+- How are you affiliated to SciLifeLab? (Infrastructure unit staff, Affiliated
+  research group member, Other)
+- What do you plan to use the OpenLLM service for? (check all that apply)
+- Would you like to be added to the SciLifeLab Slack channel for users of the
+  service? (Yes/No)
+
+Question texts and choices come from the `whale-auth-tools` schema endpoint, so
+they change with that service rather than with this Function. Selecting Other
+requires the matching free-text answer. The form is rendered on the server and
+submitted as a normal HTML form; apart from the ALTCHA widget, it needs no
+JavaScript.
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant WebUI as Open WebUI
+    participant Fn as Questionnaire Function
+    participant Whale as whale-auth-tools
+
+    User->>WebUI: Sign up (role pending)
+    WebUI->>Fn: Pending screen: POST status
+    Fn-->>WebUI: {"required": true}
+    WebUI-->>User: Redirect to the questionnaire
+    User->>Fn: GET /auth/registration-questionnaire
+    Fn->>Whale: GET schema, POST ALTCHA challenge
+    Fn-->>User: Form with ALTCHA widget
+    User->>Fn: POST answers and solved ALTCHA payload
+    Fn->>Whale: POST submission with account email as contactEmail
+    Whale-->>Fn: Submission ID
+    Fn->>WebUI: Store submission ID in user info
+    Fn-->>User: Thank-you page
+```
+
+With the SciLifeLab Open WebUI fork, users go to the form automatically. The
+fork's "Account Activation Pending" screen calls
+`POST /api/v1/registration-questionnaire/status`, which returns
+`{"required": true}` for a signed-in pending user with an email address and no
+submission. The screen then does a full page load of the form. This happens
+right after signup and whenever such a user returns. Otherwise the response is
+`{"required": false}`, 401 when signed out, or 503 with `{"required": false}`
+while the Function is disabled or unconfigured; the pending screen stays. The
+endpoint is POST so that a missing Function is not mistaken for the frontend's
+HTTP-200 fallback for unknown GET paths. Upstream Open WebUI images have no
+redirect; use the overlay link below.
+
+Only signed-in users with the `pending` role can open or submit the form; it
+uses the session cookie Open WebUI issues at signup. Each account submits once:
+after success the Function stores `{"id", "submittedAt"}` under
+`scilifelab_questionnaire` in the user's `info`, and later visits show a
+confirmation instead of the form. The answers themselves are stored only in
+`whale-auth-tools`. The account email is always sent as `contactEmail`, so
+administrators can match a submission (from `GET
+/api/v1/questionnaire/submissions`) to the account, and it doubles as the Slack
+invitation address. The Function neither approves accounts nor sends Slack
+invitations; approval stays with administrators. The
+[account approval Function](#questionnaire-requirement) returns users approved
+before submitting to `pending` by default.
+
+Invalid or incomplete answers re-render the form with the entered values and an
+error list. An expired ALTCHA challenge (after ten minutes by default) or a
+rejection by the service also re-renders the form, with a fresh challenge.
+Service outages show a 503 page; nothing is stored in Open WebUI. Cross-site
+POSTs are rejected using the `Origin` and `Sec-Fetch-Site` headers.
+
+### Questionnaire setup
+
+1. Deploy `whale-auth-tools` and give every Open WebUI replica the deployment
+   settings below. In `openllm-charts`, `registrationQuestionnaire.enabled=true`
+   sets both and serves the ALTCHA widget at the default `altcha_widget_url`.
+2. Install `oi_registration_questionnaire.py` using the
+   [installation steps](#installation) with the ID `registration_questionnaire`,
+   and enable it. Open WebUI installs `httpx==0.28.1` from its `requirements`
+   header. No Global setting is needed.
+3. Restart all Open WebUI replicas so each process registers the routes before
+   the frontend catch-all route.
+4. Optionally, link pending users to the form from Admin Settings > General >
+   **Pending User Overlay Content** (or `PENDING_USER_OVERLAY_CONTENT`). The
+   fork redirects automatically, so the link is a fallback for upstream images
+   or a failed status check. Keep the HTML on one line, because the overlay
+   converts line breaks to `<br>`:
+
+   ```html
+   Your account can only be approved after you fill in a short questionnaire. <a href="/auth/registration-questionnaire">Fill in the questionnaire</a>
+   ```
+
+   The overlay can also hold the
+   [resend verification email](#resending-verification-emails) form.
+
+| Environment setting | Purpose |
+| --- | --- |
+| `WHALE_AUTH_URL` | Service base URL, normally `http://whale-auth-tools:8080`. Shared with the ALTCHA browser gate. |
+| `WHALE_AUTH_API_TOKEN` | Service Bearer credential, supplied from a Secret. Used only server-side and never sent to browsers. |
+
+The Function stays inactive, logging one warning, until both are set. Disabling
+the Function makes already-registered routes return 503 until the next restart.
+
+### Questionnaire valves
+
+| Valve | Default | Purpose |
+| --- | --- | --- |
+| `require_altcha` | `true` | Embed the ALTCHA widget and send its payload. Keep it on while `whale-auth-tools` runs with `ALTCHA_REQUIRED=true` (the `openllm-charts` default), or every submission is rejected. |
+| `altcha_widget_url` | `/static/altcha/altcha-3.5.0.min.js` | Same-origin path of the ALTCHA v3 widget module. `openllm-charts` mounts the pinned widget there when `registrationQuestionnaire.enabled=true`, with or without the ALTCHA browser gate. Elsewhere, serve the widget on the same origin and set this path. |
+
+Saved Valves are reloaded on every request.
+
 ## Tests
 
 Run the unit tests with the optional test dependencies from [pyproject.toml](pyproject.toml):
@@ -295,4 +418,4 @@ cd openwebui-functionality
 uv run --extra test pytest
 ```
 
-Email verification tests cover environment defaults and saved overrides, duration and email header validation, signup sending and pausing, inactivity when deployment settings are missing, email-change revocation, TTL refresh on existing routes, error pages for expired, invalid, and outdated links, resend eligibility, cooldown, and cross-site rejection, and email branding. Account approval notification tests cover Valve defaults and validation, pending-user marking and backfill, approval emails and group assignment from role and SCIM events, existing memberships, group failures retaining the marker, no email for unmarked users, admin approvals, or paused sending, idempotency, inactivity when deployment settings are missing, sign-in link selection, and email content. Gmail and Open WebUI database calls are mocked; no real emails are sent.
+Email verification tests cover environment defaults and saved overrides, duration and email header validation, signup sending and pausing, inactivity when deployment settings are missing, email-change revocation, TTL refresh on existing routes, error pages for expired, invalid, and outdated links, resend eligibility, cooldown, and cross-site rejection, and email branding. Account approval notification tests cover Valve defaults and validation, pending-user marking and backfill, approval emails and group assignment from role and SCIM events, undoing approvals without a questionnaire submission and re-approval after submission, existing memberships, group failures retaining the marker, no email for unmarked users, admin approvals, or paused sending, idempotency, inactivity when deployment settings are missing, sign-in link selection, and email content. Registration questionnaire tests cover the redirect status for each kind of user, form rendering from the service schema, ALTCHA embedding and the `require_altcha` switch, submission payloads and the user-info marker, validation and service rejections that keep entered answers, service failures, refusals for signed-out, non-pending, and already-submitted users, cross-site and oversized POSTs, inactivity, route registration, and Valve validation. Gmail, `whale-auth-tools`, and Open WebUI database calls are mocked; no real emails or requests are sent.

@@ -4,7 +4,7 @@ oi_type: event
 function_id: account_approval_notification
 description: Add approved users to account-verified and email them via the Gmail API.
 author: SciLifeLab
-version: 0.2.0
+version: 0.3.0
 requirements: google-auth,requests
 
 Required Kubernetes environment variables (the Function stays inactive
@@ -18,6 +18,7 @@ Admin Valves (saved values override these optional environment defaults):
   sender_name: ACCOUNT_APPROVAL_SENDER_NAME=SciLifeLab OpenLLM
   email_subject: ACCOUNT_APPROVAL_SUBJECT=SciLifeLab OpenLLM: Your account has been approved
   login_url: ACCOUNT_APPROVAL_LOGIN_URL= (HTTPS; empty uses Open WebUI's WEBUI_URL)
+  require_questionnaire: ACCOUNT_APPROVAL_REQUIRE_QUESTIONNAIRE=true
 
 Open WebUI's role events carry only the new role. The Function therefore
 records a marker in the user's info while the user is pending (on account
@@ -25,6 +26,12 @@ creation, on a change to pending, and for all pending users when each
 backend process first handles an event) and emails only marked users whose role
 becomes "user". Approved users are first added to the existing account-verified
 group, even when emails are paused. Demotions such as admin -> user do nothing.
+
+With require_questionnaire on, an approval to "user" of an account without a
+registration questionnaire submission (recorded by the registration_questionnaire
+Function) is undone: the role returns to pending, with no group or email. Events
+cannot block the role change itself, so the user holds the role only until this
+Function handles the event.
 """
 
 import asyncio
@@ -56,6 +63,8 @@ REQUIRED_SETTINGS = (
 )
 # Key in the user's info JSON marking an account that awaits approval.
 PENDING_MARKER = "scilifelab_awaiting_approval"
+# Key the registration_questionnaire Function sets in the user's info on submission.
+QUESTIONNAIRE_KEY = "scilifelab_questionnaire"
 GROUP_NAME = "account-verified"
 
 
@@ -88,6 +97,15 @@ class Event:
             description=(
                 "HTTPS link to Open WebUI included in the email. Empty uses the "
                 "WEBUI_URL setting, or omits the link when that is also unset."
+            ),
+        )
+        require_questionnaire: bool = Field(
+            default=TypeAdapter(bool).validate_python(
+                os.getenv("ACCOUNT_APPROVAL_REQUIRE_QUESTIONNAIRE", "true").strip()
+            ),
+            description=(
+                "Return users approved before submitting the registration "
+                "questionnaire to pending, without group membership or email."
             ),
         )
 
@@ -184,6 +202,16 @@ class Event:
         if user.role != "user":
             # Approved straight to admin, or another role: no email.
             await self.set_marker(user, False)
+            return
+        if self.valves.require_questionnaire and not (user.info or {}).get(QUESTIONNAIRE_KEY):
+            # Undo the approval. The marker stays, so approving again after the
+            # user submits the questionnaire completes normally.
+            await Users.update_user_role_by_id(user.id, "pending")
+            user.role = "pending"
+            log.warning(
+                "User id %s approved without a registration questionnaire; role reset to pending",
+                user.id,
+            )
             return
         # Add membership without replacing the user's other groups. Keep the
         # marker on failure so a later role event can retry the approval.
