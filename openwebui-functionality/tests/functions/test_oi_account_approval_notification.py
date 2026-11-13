@@ -45,8 +45,13 @@ def approval(monkeypatch, request):
     module.Groups.add_users_to_group = AsyncMock(return_value=True)
     module.Config.get = AsyncMock(return_value="https://example.org")
     module.Users.update_user_by_id = AsyncMock()
+    module.Users.update_user_role_by_id = AsyncMock()
     module.Users.get_users = AsyncMock(return_value={"users": [], "total": 0})
     return module
+
+
+# Recorded by the registration questionnaire Function; required for approval by default.
+SUBMITTED = {"scilifelab_questionnaire": {"id": "q-1", "submittedAt": "2026-11-13T12:00:00Z"}}
 
 
 def make_user(role, marked=False, email="user@example.org", info=None):
@@ -79,6 +84,7 @@ def test_defaults(approval):
     assert valves.sender_name == "SciLifeLab OpenLLM"
     assert valves.email_subject == "SciLifeLab OpenLLM: Your account has been approved"
     assert valves.login_url == ""
+    assert valves.require_questionnaire is True
 
 
 @pytest.mark.parametrize("approval", [{
@@ -86,6 +92,7 @@ def test_defaults(approval):
     "ACCOUNT_APPROVAL_SENDER_NAME": "Deployment name",
     "ACCOUNT_APPROVAL_SUBJECT": "Deployment subject",
     "ACCOUNT_APPROVAL_LOGIN_URL": " https://llm.example.org/ ",
+    "ACCOUNT_APPROVAL_REQUIRE_QUESTIONNAIRE": "false",
 }], indirect=True)
 def test_environment_defaults_and_saved_overrides(approval):
     event = approval.Event()
@@ -93,6 +100,7 @@ def test_environment_defaults_and_saved_overrides(approval):
     assert event.valves.sender_name == "Deployment name"
     assert event.valves.email_subject == "Deployment subject"
     assert event.valves.login_url == "https://llm.example.org/"
+    assert event.valves.require_questionnaire is False
     event.valves = event.Valves(send_on_approval=True, login_url="")
     assert event.valves.send_on_approval is True
     assert event.valves.login_url == ""
@@ -118,7 +126,7 @@ def test_environment_defaults_are_validated(approval):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("name,payload", [ROLE_UPDATED, SCIM_UPDATED])
 async def test_marked_pending_user_approved_receives_email(approval, name, payload):
-    event = make_event(approval, make_user("user", marked=True, info={"other": 1}))
+    event = make_event(approval, make_user("user", marked=True, info={"other": 1, **SUBMITTED}))
     await event.event(payload, __event_name__=name)
     event.send_approval_email.assert_called_once_with(
         "user@example.org", "Ada", "https://example.org"
@@ -126,12 +134,12 @@ async def test_marked_pending_user_approved_receives_email(approval, name, paylo
     approval.Groups.get_group_by_name.assert_awaited_once_with("account-verified")
     approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
     # The marker is cleared, preserving unrelated info.
-    assert saved_info(approval) == {"other": 1}
+    assert saved_info(approval) == {"other": 1, **SUBMITTED}
 
 
 @pytest.mark.asyncio
 async def test_repeated_event_sends_once(approval):
-    user = make_user("user", marked=True)
+    user = make_user("user", marked=True, info=SUBMITTED)
     event = make_event(approval, user)
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
@@ -163,10 +171,11 @@ async def test_signup_then_approval_flow(approval):
     user = make_user("pending")
     event = make_event(approval, user)
     await event.event({"subject": {"id": "user-1"}}, __event_name__="user.created")
+    user.info = {**user.info, **SUBMITTED}
     user.role = "user"
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     event.send_approval_email.assert_called_once()
-    assert user.info == {}
+    assert user.info == SUBMITTED
 
 
 @pytest.mark.asyncio
@@ -179,12 +188,12 @@ async def test_pending_to_admin_clears_marker_without_email(approval):
 
 @pytest.mark.asyncio
 async def test_paused_sending_adds_group_and_clears_marker_without_email(approval):
-    event = make_event(approval, make_user("user", marked=True))
+    event = make_event(approval, make_user("user", marked=True, info=SUBMITTED))
     event.valves = event.Valves(send_on_approval=False)
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
     event.send_approval_email.assert_not_called()
-    assert saved_info(approval) == {}
+    assert saved_info(approval) == SUBMITTED
 
 
 @pytest.mark.asyncio
@@ -277,7 +286,7 @@ async def test_existing_membership_is_preserved(approval):
     approval.Groups.get_groups_by_member_id.return_value = [
         SimpleNamespace(id="other-group"), SimpleNamespace(id="verified-group")
     ]
-    event = make_event(approval, make_user("user", marked=True))
+    event = make_event(approval, make_user("user", marked=True, info=SUBMITTED))
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     approval.Groups.add_users_to_group.assert_not_awaited()
     event.send_approval_email.assert_called_once()
@@ -286,7 +295,7 @@ async def test_existing_membership_is_preserved(approval):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("failure", ["missing", "failed", "exception"])
 async def test_group_failure_preserves_marker_for_retry(approval, failure):
-    user = make_user("user", marked=True)
+    user = make_user("user", marked=True, info=SUBMITTED)
     event = make_event(approval, user)
     if failure == "missing":
         approval.Groups.get_group_by_name.return_value = None
@@ -311,7 +320,56 @@ async def test_non_approvals_do_not_assign_group(approval, role, marked):
 
 @pytest.mark.asyncio
 async def test_missing_email_does_not_prevent_group_assignment(approval):
-    event = make_event(approval, make_user("user", marked=True, email=""))
+    event = make_event(approval, make_user("user", marked=True, email="", info=SUBMITTED))
     await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
     approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
     event.send_approval_email.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("name,payload", [ROLE_UPDATED, SCIM_UPDATED])
+async def test_approval_without_questionnaire_is_undone(approval, name, payload, caplog):
+    user = make_user("user", marked=True, info={"other": 1})
+    event = make_event(approval, user)
+    await event.event(payload, __event_name__=name)
+    approval.Users.update_user_role_by_id.assert_awaited_once_with("user-1", "pending")
+    approval.Groups.get_group_by_name.assert_not_awaited()
+    approval.Groups.add_users_to_group.assert_not_awaited()
+    event.send_approval_email.assert_not_called()
+    # The marker stays, so a later approval after submission completes normally.
+    approval.Users.update_user_by_id.assert_not_awaited()
+    assert user.info == {"other": 1, "scilifelab_awaiting_approval": True}
+    assert "without a registration questionnaire" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_reapproval_after_questionnaire_completes(approval):
+    user = make_user("user", marked=True)
+    event = make_event(approval, user)
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    assert user.role == "pending"
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])  # Repeated event.
+    approval.Users.update_user_role_by_id.assert_awaited_once()
+    user.info = {**user.info, **SUBMITTED}
+    user.role = "user"
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Groups.add_users_to_group.assert_awaited_once_with("verified-group", ["user-1"])
+    event.send_approval_email.assert_called_once()
+    assert user.info == SUBMITTED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role,marked", [("admin", True), ("user", False)])
+async def test_questionnaire_not_required_for_admins_or_unmarked_users(approval, role, marked):
+    event = make_event(approval, make_user(role, marked=marked))
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Users.update_user_role_by_id.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_questionnaire_requirement_can_be_disabled(approval):
+    event = make_event(approval, make_user("user", marked=True))
+    event.valves = event.Valves(require_questionnaire=False)
+    await event.event(ROLE_UPDATED[1], __event_name__=ROLE_UPDATED[0])
+    approval.Users.update_user_role_by_id.assert_not_awaited()
+    event.send_approval_email.assert_called_once()
