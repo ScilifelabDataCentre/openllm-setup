@@ -214,7 +214,7 @@ neither intercepts navigation nor blocks signup; the proxy provides enforcement.
 
 An unverified GET receives the interstitial at its original URL. The page runs
 ALTCHA automatically, submits the solution, and reloads the same URL after the
-server sets a Secure, HttpOnly, SameSite=Strict, host-only clearance cookie. This
+server sets a Secure, HttpOnly, SameSite=Lax, host-only clearance cookie. This
 preserves the path, query and fragment without accepting arbitrary redirect URLs.
 Direct visits to `/auth/verify-human` continue to `/` after verification. JavaScript
 and HTTPS are required. A retry button appears on failures.
@@ -256,8 +256,8 @@ and redeploy; disabling only the Function intentionally blocks protected traffic
 Routes registered before the SPA catch-all:
 
 - `GET /auth/verify-human`: standalone interstitial, with no-store and CSP headers.
-- `POST /api/v1/altcha-gate/challenge`: service challenge, bound to a random browser cookie for at most ten minutes.
-- `POST /api/v1/altcha-gate/verify`: accepts JSON `{"altchaPayload":"<base64>"}` up to 16 KiB. Atomically consumes the issued challenge, compares it with the submitted challenge, then calls the service. The service also validates signed expiry. Success replaces the cookie with a random clearance token.
+- `POST /api/v1/altcha-gate/challenge`: service challenge, bound for at most ten minutes to a separate SameSite=Strict pending cookie. Each tab's challenge is stored separately. Returns `{"verified": true}` without a new challenge when the browser already has valid clearance.
+- `POST /api/v1/altcha-gate/verify`: accepts JSON `{"altchaPayload":"<base64>"}` up to 16 KiB. Atomically consumes the issued challenge, compares it with the submitted challenge, then calls the service. The service also validates signed expiry. Success sets the clearance cookie to a random token.
 - `POST /api/v1/altcha-gate/check`: returns 204 for valid clearance, 401 if absent/expired, or 503 if unavailable. The chart blocks direct public access and invokes it through an internal proxy subrequest. POST is deliberate: a missing Function must not be mistaken for Open WebUI's HTTP-200 SPA fallback for unknown GET paths.
 
 The chart serves the pinned `altcha@3.5.0` widget locally at
@@ -266,8 +266,11 @@ the service's v2 challenge protocol. No external CDN or CORS configuration is ne
 
 Challenges are single-use, including failed verification attempts. **Clearance is
 reusable until expiry**, as in a browser interstitial; it is not a one-account-per-
-challenge quota. Redis loss invalidates outstanding checks and clearance. Multiple
-tabs share the cookie; a new challenge can supersede another tab's pending check.
+challenge quota. Redis loss invalidates outstanding checks and clearance. The
+clearance cookie is SameSite=Lax so links from email, Slack, other sites and OAuth
+returns keep it; cross-site POSTs to protected endpoints still omit it. Tabs verify
+independently, and a new challenge never replaces existing clearance. The chart
+rate-limits challenge and verify requests per client; the page reports 429s.
 
 The chart exempts health checks, email callbacks, OAuth, static assets, WebSockets,
 and API routes, which retain Open WebUI's normal authentication. Password signup,
@@ -278,8 +281,8 @@ outside this proof-of-work gate. Documentation routes served by the separate doc
 Service also remain public. This is an anti-abuse check, not a substitute for API
 authentication, request-rate limits, or volumetric DDoS protection.
 
-Function tests cover clearance, cross-replica state, replay, expiry, malformed and
-oversized payloads, service failure, origin checks, Valve validation, route reload,
+Function tests cover clearance, cookie separation, parallel tabs, cross-replica
+state, replay, expiry, malformed and oversized payloads, service failure, origin checks, Valve validation, route reload,
 and the missing-Function SPA fallback. Chart proxy tests cover routing and exceptions
 with the real pinned NGINX image and an isolated fake backend.
 

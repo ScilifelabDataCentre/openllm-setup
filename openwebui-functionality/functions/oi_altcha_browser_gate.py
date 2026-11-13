@@ -4,7 +4,7 @@ oi_type: event
 function_id: altcha_browser_gate
 description: Serve a browser interstitial and validate clearance for an NGINX proxy.
 author: SciLifeLab
-version: 0.2.0
+version: 0.3.0
 requirements: httpx==0.28.1, redis==8.0.1
 
 Requires the optional openllm-charts ALTCHA proxy and HTTPS; no app source changes.
@@ -15,6 +15,7 @@ Restart all replicas after installation. No HMAC secrets enter Open WebUI.
 
 import base64
 import binascii
+import hashlib
 import json
 import logging
 import os
@@ -35,6 +36,9 @@ log = logging.getLogger(__name__)
 PREFIX = "/api/v1/altcha-gate"
 PAGE = "/auth/verify-human"
 COOKIE = "__Host-altcha-clearance"
+# Pending challenges use a separate cookie so a new challenge never replaces clearance.
+PENDING = "__Host-altcha-pending"
+KEY = "openwebui:altcha-gate:"
 REQUIRED = ("WHALE_AUTH_URL", "WHALE_AUTH_API_TOKEN", "ALTCHA_REDIS_URL", "ALTCHA_PUBLIC_ORIGINS")
 
 
@@ -118,27 +122,42 @@ class Event:
         except (httpx.HTTPError, ValueError):
             raise HTTPException(503, "Browser verification is unavailable") from None
 
-    def key(self, request):
-        token = request.cookies.get(COOKIE, "")
-        if not re.fullmatch(r"[0-9a-f]{64}", token):
-            raise HTTPException(403, "Complete browser verification first")
-        return "openwebui:altcha-gate:" + token
+    @staticmethod
+    def token(request, cookie):
+        token = request.cookies.get(cookie, "")
+        return token if re.fullmatch(r"[0-9a-f]{64}", token) else None
 
-    def response(self, data, token, ttl):
+    @staticmethod
+    def pending_key(browser, signature):
+        # One key per issued challenge lets several tabs verify independently.
+        return f"{KEY}pending:{browser}:{hashlib.sha256(signature.encode()).hexdigest()}"
+
+    async def cleared(self, request):
+        token = self.token(request, COOKIE)
+        return bool(token) and await self.storage("get", KEY + token) == "verified"
+
+    def response(self, data, cookie, token, ttl):
         response = JSONResponse(data, headers={"Cache-Control": "no-store"})
-        response.set_cookie(COOKIE, token, max_age=ttl, secure=True, httponly=True, samesite="strict", path="/")
+        # Lax keeps clearance on top-level navigations from other sites (email, Slack,
+        # OAuth returns); cross-site POSTs to protected endpoints still omit it.
+        samesite = "lax" if cookie == COOKIE else "strict"
+        response.set_cookie(cookie, token, max_age=ttl, secure=True, httponly=True, samesite=samesite, path="/")
         return response
 
     async def challenge(self, request: Request):
         await self.ready(request)
+        if await self.cleared(request):
+            # Another tab already verified this browser; keep its clearance cookie.
+            return JSONResponse({"verified": True}, headers={"Cache-Control": "no-store"})
         challenge = await self.upstream("challenge")
-        if not isinstance(challenge.get("parameters"), dict) or not challenge.get("signature"):
+        if not isinstance(challenge.get("parameters"), dict) or not isinstance(challenge.get("signature"), str) \
+                or not challenge["signature"]:
             raise HTTPException(503, "Unsupported ALTCHA challenge")
-        token = secrets.token_hex(32)
+        browser = self.token(request, PENDING) or secrets.token_hex(32)
         # Match the exact challenge issued to this browser. Redis TTL caps its lifetime;
         # whale-auth-tools independently checks its signed expiresAt timestamp.
-        await self.storage("set", "openwebui:altcha-gate:" + token, json.dumps(challenge), ex=600)
-        return self.response(challenge, token, 600)
+        await self.storage("set", self.pending_key(browser, challenge["signature"]), json.dumps(challenge), ex=600)
+        return self.response(challenge, PENDING, browser, 600)
 
     async def verify(self, request: Request):
         await self.ready(request)
@@ -154,25 +173,27 @@ class Event:
                 raise ValueError()
             decoded = json.loads(base64.b64decode(payload, validate=True))
             challenge = decoded["challenge"]
+            signature = challenge["signature"]
+            if not isinstance(signature, str):
+                raise ValueError()
         except (ValueError, KeyError, TypeError, binascii.Error):
             raise HTTPException(400, "Invalid ALTCHA payload") from None
-        issued = await self.storage("getdel", self.key(request))
-        if not issued or issued == "verified" or json.loads(issued) != challenge:
+        browser = self.token(request, PENDING)
+        if not browser:
+            raise HTTPException(403, "Complete browser verification first")
+        issued = await self.storage("getdel", self.pending_key(browser, signature))
+        if not issued or json.loads(issued) != challenge:
             raise HTTPException(403, "Challenge expired or already used; try again")
         result = await self.upstream("verify", {"altchaPayload": payload})
         if result.get("verified") is not True or any(result.get(key) for key in ("expired", "invalidSignature", "invalidSolution", "error")):
             raise HTTPException(403, "Verification failed; try again")
         token = secrets.token_hex(32)
-        await self.storage("set", "openwebui:altcha-gate:" + token, "verified", ex=self.valves.clearance_ttl)
-        return self.response({"verified": True, "expiresIn": self.valves.clearance_ttl}, token, self.valves.clearance_ttl)
+        await self.storage("set", KEY + token, "verified", ex=self.valves.clearance_ttl)
+        return self.response({"verified": True, "expiresIn": self.valves.clearance_ttl}, COOKIE, token, self.valves.clearance_ttl)
 
     async def check(self, request: Request):
         await self.ready(request, check_origin=False)
-        try:
-            key = self.key(request)
-        except HTTPException:
-            return Response(status_code=401, headers={"Cache-Control": "no-store"})
-        valid = await self.storage("get", key) == "verified"
+        valid = await self.cleared(request)
         return Response(status_code=204 if valid else 401, headers={"Cache-Control": "no-store"})
 
     async def page(self, request: Request):
@@ -215,8 +236,14 @@ async function post(path, body = {}) {
     method: 'POST', credentials: 'same-origin',
     headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)
   });
+  if (response.status === 429) throw new Error('Too many attempts. Please wait a minute and try again.');
   if (!response.ok) throw new Error('Verification is unavailable or expired. Please try again.');
   return response.json();
+}
+function proceed() {
+  status.textContent = 'Verified. Continuing…';
+  if (location.pathname === '/auth/verify-human') location.replace('/');
+  else location.reload();
 }
 function failed(error) {
   status.textContent = error.message || 'Verification failed. Please try again.';
@@ -232,15 +259,14 @@ async function start() {
   try {
     await import('/auth/verify-human/altcha-3.5.0.min.js');
     const challenge = await post('challenge');
+    if (challenge.verified === true) return proceed();
     const widget = document.createElement('altcha-widget');
     widget.setAttribute('challenge', JSON.stringify(challenge));
     widget.addEventListener('verified', async event => {
       try {
         const result = await post('verify', {altchaPayload: event.detail.payload});
         if (result.verified !== true) throw new Error('Verification failed. Please try again.');
-        status.textContent = 'Verified. Continuing…';
-        if (location.pathname === '/auth/verify-human') location.replace('/');
-        else location.reload();
+        proceed();
       } catch (error) { failed(error); }
     }, {once: true});
     widget.addEventListener('statechange', event => {

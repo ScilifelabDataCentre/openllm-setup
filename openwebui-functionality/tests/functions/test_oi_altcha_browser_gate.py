@@ -85,7 +85,7 @@ async def test_clearance_cookie_expiry_and_cross_replica(gate):
     response = await verified(gate)
     assert response.json() == {'verified': True, 'expiresIn': 3600}
     cookie = response.headers['set-cookie']
-    assert all(flag in cookie for flag in ('Secure', 'HttpOnly', 'SameSite=strict', 'Path=/'))
+    assert all(flag in cookie for flag in ('Secure', 'HttpOnly', 'SameSite=lax', 'Path=/'))
     replica = gate.module.Event()
     replica._function_id = 'altcha_browser_gate'
     replica.origins = gate.fn.origins
@@ -101,17 +101,48 @@ async def test_clearance_cookie_expiry_and_cross_replica(gate):
 
 async def test_replay_and_different_browser_rejected(gate):
     await gate.client.post(gate.module.PREFIX + '/challenge')
-    original = gate.client.cookies.get(gate.module.COOKIE)
+    original = gate.client.cookies.get(gate.module.PENDING)
     gate.client.cookies.clear()
     assert (await gate.client.post(gate.module.PREFIX + '/verify', json=payload(gate.challenge))).status_code == 403
-    gate.client.cookies.set(gate.module.COOKIE, original)
+    gate.client.cookies.set(gate.module.PENDING, original)
     assert (await gate.client.post(gate.module.PREFIX + '/verify', json=payload(gate.challenge))).status_code == 200
     gate.client.cookies.clear()
-    gate.client.cookies.set(gate.module.COOKIE, original)
+    gate.client.cookies.set(gate.module.PENDING, original)
     assert (await gate.client.post(gate.module.PREFIX + '/verify', json=payload(gate.challenge))).status_code == 403
 
 
-@pytest.mark.parametrize('body', [{}, [], {'altchaPayload': 42}, {'altchaPayload': '!'}, {'altchaPayload': 'bnVsbA=='}])
+async def test_challenge_cookie_is_separate_from_clearance(gate):
+    response = await gate.client.post(gate.module.PREFIX + '/challenge')
+    cookie = response.headers['set-cookie']
+    assert cookie.startswith(gate.module.PENDING + '=') and 'SameSite=strict' in cookie
+    assert gate.client.cookies.get(gate.module.COOKIE) is None
+
+
+async def test_challenge_keeps_existing_clearance(gate):
+    assert (await verified(gate)).status_code == 200
+    clearance = gate.client.cookies.get(gate.module.COOKIE)
+    gate.fn.upstream.reset_mock()
+    response = await gate.client.post(gate.module.PREFIX + '/challenge')
+    assert response.json() == {'verified': True}
+    assert 'set-cookie' not in response.headers
+    gate.fn.upstream.assert_not_called()
+    assert gate.client.cookies.get(gate.module.COOKIE) == clearance
+    assert (await gate.client.post(gate.module.PREFIX + '/check')).status_code == 204
+
+
+async def test_parallel_tabs_verify_independently(gate):
+    issued = iter([{'parameters': {'nonce': n}, 'signature': 'signed-' + n} for n in ('a', 'b')])
+    gate.fn.upstream.side_effect = lambda endpoint, payload=None: next(issued) if endpoint == 'challenge' else {'verified': True}
+    first = (await gate.client.post(gate.module.PREFIX + '/challenge')).json()
+    second = (await gate.client.post(gate.module.PREFIX + '/challenge')).json()
+    assert (await gate.client.post(gate.module.PREFIX + '/verify', json=payload(second))).status_code == 200
+    gate.client.cookies.delete(gate.module.COOKIE)  # The other tab still solves its own challenge.
+    assert (await gate.client.post(gate.module.PREFIX + '/verify', json=payload(first))).status_code == 200
+    assert (await gate.client.post(gate.module.PREFIX + '/check')).status_code == 204
+
+
+@pytest.mark.parametrize('body', [{}, [], {'altchaPayload': 42}, {'altchaPayload': '!'}, {'altchaPayload': 'bnVsbA=='},
+                                  payload({'signature': 42})])
 async def test_bad_payload(gate, body):
     assert (await gate.client.post(gate.module.PREFIX + '/verify', json=body)).status_code == 400
 
