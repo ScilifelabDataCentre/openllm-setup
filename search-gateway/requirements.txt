@@ -1,4 +1,0 @@
-# Pin exact versions after the first working build.
-fastapi
-uvicorn
-ddgs
