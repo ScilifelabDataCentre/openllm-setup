@@ -228,7 +228,7 @@ def gateway_settings(valves):
     """The gateway's address and key: the Valves if set, otherwise what the Helm chart gives Open WebUI.
 
     The chart sets SEARCH_GATEWAY_URL and SEARCH_GATEWAY_API_KEY in Open WebUI's environment
-    (searchGateway.openwebui.enabled), so the Valves can stay empty.
+    (searchGateway.webuiEnv.enabled), so the Valves can stay empty.
     """
     url = valves.GATEWAY_URL or os.environ.get("SEARCH_GATEWAY_URL") or "http://search-gateway:8000"
     key = valves.API_KEY or os.environ.get("SEARCH_GATEWAY_API_KEY", "")
