@@ -9,6 +9,7 @@ This repository contains setup files and scripts for multiple deployment targets
 - A vLLM service (on KTH cluster)
 - A vLLM service (on SafeSpring using an H100 GPU)
 - A vLLM BGE-M3 embeddings service (on KTH cluster), backing Open WebUI's RAG and exposed to clients via an OpenAI-compatible connection
+- Web search with approval: an Open WebUI tool and function (in `openwebui-functionality/search-approval/`) that let web searches leave only after the user approves them, through the search gateway deployed with the Open WebUI Helm chart
 
 ## Directory structure
 
