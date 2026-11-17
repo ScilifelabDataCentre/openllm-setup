@@ -168,11 +168,11 @@ class Event:
 
     def refusal(self, user) -> HTMLResponse | None:
         if user is None:
-            return page("Sign in required", "<p>Sign in with the account you registered, "
+            return page("Sign in required", "<p class=\"message\">Sign in with the account you registered, "
                         "then open the questionnaire from the account pending screen.</p>", status_code=401)
         if user.role != "pending":
             return page("No questionnaire needed",
-                        "<p>The questionnaire is only for accounts awaiting approval.</p>")
+                        "<p class=\"message\">The questionnaire is only for accounts awaiting approval.</p>")
         if (user.info or {}).get(INFO_KEY):
             return submitted_page()
         if not user.email:
@@ -344,7 +344,7 @@ def render_form(schema: dict, values: dict, errors: list[str], email: str, chall
     if challenge:
         altcha = (f'<altcha-widget auto="onsubmit" name="altcha" '
                   f'challenge="{e(json.dumps(challenge, separators=(",", ":")), quote=True)}"></altcha-widget>')
-    return f"""<p>Your account is waiting for administrator approval. Your answers help us review it.</p>
+    return f"""<p>Your account is waiting for administrator approval. Your answers are required for us to review your account request.</p>
 {f'<div class="errors" role="alert"><ul>{error_list}</ul></div>' if errors else ""}
 <form method="post" action="{PAGE}">
 <label class="question" for="organisation">{question("organisation", "Which university or organisation are you affiliated to?")}</label>
@@ -370,12 +370,12 @@ def render_form(schema: dict, values: dict, errors: list[str], email: str, chall
 
 def submitted_page(thanks: bool = False) -> HTMLResponse:
     return page("Thank you" if thanks else "Questionnaire submitted",
-                "<p>Your answers have been sent to the administrators, who will use them to review your account.</p>"
-                "<p>Account review may take several working days.</p>")
+                "<p class=\"message\">Your answers have been sent to the administrators, who will use them to review your account.</p>"
+                "<p class=\"message\">Account review may take several working days.</p>")
 
 
 def unavailable_page() -> HTMLResponse:
-    return page("Questionnaire unavailable", "<p>The questionnaire is temporarily unavailable. "
+    return page("Questionnaire unavailable", "<p class=\"message\">The questionnaire is temporarily unavailable. "
                 "Please try again later.</p>", status_code=503)
 
 
@@ -397,6 +397,7 @@ main{{display:flex;flex-direction:column;justify-content:center;min-height:100dv
 section{{width:100%;max-width:36rem;margin:auto;overflow-wrap:anywhere}}
 h1{{margin:0 0 1rem;font-size:1.5rem;line-height:2rem;font-weight:400;text-align:center}}
 p{{margin:.75rem 0 0;color:var(--muted)}}
+.message{{text-align:center}}
 fieldset{{margin:1.5rem 0 0;padding:0;border:0}}
 .question{{display:block;margin-top:1.5rem;padding:0;font-weight:600;color:var(--foreground)}}
 .hint{{margin:.25rem 0 .5rem}}
