@@ -25,5 +25,5 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.15"
-      - uses: astral-sh/setup-uv@v10.3.3
+      - uses: astral-sh/setup-uv@v10.4.0
       - run: uv run --locked --extra test pytest
