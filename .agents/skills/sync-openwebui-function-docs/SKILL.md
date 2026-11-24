@@ -18,32 +18,35 @@ existing README edits. Do not infer behavior solely from filenames or comments.
 
 ## Update the README
 
-- For a new installable function, add a relative source link and a concise purpose
-  statement under the appropriate Components subsection. Use its metadata title
-  and actual entry-point type. Support modules such as `__init__.py` do not need
-  their own component entry.
-- For an updated function, revise descriptions and instructions affected by its
-  behavior. For renames or removals, update or remove obsolete links and guidance.
-- Document setup prerequisites, installation and activation, dependencies, and
-  supported Open WebUI capabilities when the change introduces or alters them.
-  Distinguish enabling a Function from making a filter or action Global.
-- Keep configurable Valves and deployment environment variables distinct. Verify
-  names, types or accepted values, built-in defaults, environment defaults,
-  precedence, and restart requirements against the implementation where relevant.
-- Explain user-visible behavior and operational limits: event triggers, endpoints,
-  permissions, external effects, and interactions with other functions, as needed
-  for an administrator to configure and use the affected component.
-- Update testing guidance only when commands, dependencies, or documented coverage
-  change. Describe only coverage supported by existing tests.
+Keep it short and factual. An administrator should learn what each function does
+and how to configure it at a glance; anything beyond that is noise.
 
-Preserve the README's organization and relative links. Add a dedicated section
-when a component needs more detail than its inventory entry; avoid duplicating
-shared installation steps. Use placeholder secrets and example addresses.
+- **New function:** add a relative source link, its metadata title, its type
+  (Filter, Action, Pipe, Event), and a one- or two-sentence purpose under the
+  matching Components subsection. Support modules such as `__init__.py` need no
+  entry.
+- **Changed function:** update only the facts that changed. For renames or
+  removals, fix or delete stale links and guidance.
+- **Configuration:** list Valves and environment variables in a compact table or
+  list (name, default, one-line meaning). Keep Valves and environment variables
+  distinct and verify names and defaults against the code.
+- **Special details:** mention only what an administrator would otherwise get
+  wrong, such as required dependencies, Global vs. enabled, endpoints, external
+  effects, conflicts with other functions, or restart requirements. One line each.
+- **Testing:** update only when commands or dependencies change.
+
+Avoid restating code, walking through internals, repeating shared installation
+steps, or adding background explanation, examples, or rationale unless they are
+essential. Prefer bullets over paragraphs. Add a dedicated section only when a
+function cannot be described in its inventory entry and a short configuration
+list. Preserve the README's organization and use placeholder secrets and example
+addresses.
 
 Always assess documentation after a function change. If the change is purely
 internal and the README remains accurate and complete, leave it unchanged and
-briefly explain that result in the task summary. Do not add timestamps, changelog
-entries, or wording-only edits merely to produce a README diff.
+briefly explain that result in the task summary. Do not add timestamps or
+wording-only edits merely to produce a README diff. Record the change in
+`CHANGELOG.md` as described in the repository guidance, not in the README.
 
 ## Verify and finish
 

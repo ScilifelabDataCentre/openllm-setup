@@ -33,6 +33,9 @@ configuration to resolve outdated examples. Deployment folder names follow
   behavior. Keep examples free of real credentials.
 - Keep image and dependency versions explicit. For intentional Helm dependency
   changes, update `Chart.yaml` and `Chart.lock` together.
+- For every repository change, automatically read and apply the
+  [sync-changelog skill](.agents/skills/sync-changelog/SKILL.md) and add a brief
+  `CHANGELOG.md` entry in the same change.
 
 ## Component constraints
 
