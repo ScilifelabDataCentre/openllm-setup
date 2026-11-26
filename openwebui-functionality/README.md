@@ -10,6 +10,8 @@ This part of the repository contains definitions of additional functionality cre
 
 ### Functions
 
+- SciLifeLab ALTCHA Browser Gate from [oi_altcha_browser_gate.py](functions/oi_altcha_browser_gate.py). An Event Function serving a standalone browser interstitial for the optional Helm proxy. See [ALTCHA browser gate](#altcha-browser-gate).
+
 - Request Quota Guard from [oi_request_quota_guard.py](functions/oi_request_quota_guard.py). Restricts the number of user requests per minute and also logs user request usage.
 - Rate Limit Enforcer from [oi_rate_limit_enforcer.py](functions/oi_rate_limit_enforcer.py). Restricts the number of user requests per minute.
 - SciLifeLab Email Verification from [oi_email_verification_callback.py](functions/oi_email_verification_callback.py). An Event Function that sends signup verification emails through the Gmail API and records email ownership in the `email-verified` group. See [Email verification](#email-verification) for setup.
@@ -200,6 +202,89 @@ Saved admin Valve values override the optional environment defaults below. Envir
 | `login_url` | empty | `ACCOUNT_APPROVAL_LOGIN_URL` | HTTPS sign-in link included in the email. When empty, Open WebUI's `WEBUI_URL` is used if it is an HTTPS URL; otherwise the email has no link. |
 
 Sender name and subject must be nonempty and contain no control characters; `login_url` must be empty or an HTTPS URL.
+
+## ALTCHA browser gate
+
+The `altcha_browser_gate` Event Function serves a separate “Checking your browser”
+page and delegates proof-of-work generation and verification to `whale-auth-tools`.
+The optional `altchaGate` NGINX sidecar in the `openllm-charts` repository gates
+browser navigation before it reaches Open WebUI. **No Open WebUI source changes,
+frontend dependencies, or custom image rebuild are needed.** The Function alone
+neither intercepts navigation nor blocks signup; the proxy provides enforcement.
+
+An unverified GET receives the interstitial at its original URL. The page runs
+ALTCHA automatically, submits the solution, and reloads the same URL after the
+server sets a Secure, HttpOnly, SameSite=Lax, host-only clearance cookie. This
+preserves the path, query and fragment without accepting arbitrary redirect URLs.
+Direct visits to `/auth/verify-human` continue to `/` after verification. JavaScript
+and HTTPS are required. A retry button appears on failures.
+
+### Browser gate setup
+
+1. Bootstrap the initial administrator with the chart's `altchaGate.enabled=false`
+   (the default). Install `oi_altcha_browser_gate.py` in Admin Panel > Functions >
+   New: paste, save as `altcha_browser_gate`, and enable. No Global setting is needed.
+2. Configure the environment settings below on **every worker and replica** using
+   the chart's `altchaGate` values and existing Kubernetes Secrets. Shared Redis
+   6.2+ is required for atomic challenge consumption. HMAC secrets stay exclusively
+   in whale-auth-tools.
+3. Enable `altchaGate.enabled` in your environment overlay and restart all replicas
+   through the normal deployment workflow. Enabling a Function does not replay
+   startup; each worker must register its routes before receiving gated traffic.
+4. Check the chart's exception paths against your callback URLs and API clients.
+   Test a fresh browser, verification expiry, direct signup without a cookie,
+   service/Redis outages, OAuth, email links, streaming, and WebSockets before rollout.
+
+| Environment setting | Purpose |
+| --- | --- |
+| `WHALE_AUTH_URL` | Service base URL, normally `http://whale-auth-tools:8080`. HTTP is for a trusted internal network; otherwise use HTTPS. |
+| `WHALE_AUTH_API_TOKEN` | Service Bearer credential, supplied from a Secret. Never exposed to browsers. |
+| `ALTCHA_REDIS_URL` | Same Redis 6.2+ database on all replicas. Supply credentials through a Secret. |
+| `ALTCHA_PUBLIC_ORIGINS` | Comma-separated exact HTTPS origins, e.g. `https://openllm.example.org,https://openllm-dev.example.org`. Include each public hostname; omit paths and trailing slashes. |
+
+The Function installs `httpx==0.28.1` and `redis==8.0.1` through its metadata.
+Include them in the image if runtime package installation is disabled. Missing
+settings leave the Function inactive with a warning. With the proxy enabled,
+missing/disabled Functions or service/Redis failures block protected traffic.
+Restart after environment changes. To remove the gate, disable `altchaGate.enabled`
+and redeploy; disabling only the Function intentionally blocks protected traffic.
+
+| Valve | Default | Purpose |
+| --- | --- | --- |
+| `clearance_ttl` | `3600` | Integer seconds the verified browser may access protected routes, from 60 to 86400. Saved settings refresh on requests; existing cookies retain their original expiry. |
+
+Routes registered before the SPA catch-all:
+
+- `GET /auth/verify-human`: standalone interstitial, with no-store and CSP headers.
+- `POST /api/v1/altcha-gate/challenge`: service challenge, bound for at most ten minutes to a separate SameSite=Strict pending cookie. Each tab's challenge is stored separately. Returns `{"verified": true}` without a new challenge when the browser already has valid clearance.
+- `POST /api/v1/altcha-gate/verify`: accepts JSON `{"altchaPayload":"<base64>"}` up to 16 KiB. Atomically consumes the issued challenge, compares it with the submitted challenge, then calls the service. The service also validates signed expiry. Success sets the clearance cookie to a random token.
+- `POST /api/v1/altcha-gate/check`: returns 204 for valid clearance, 401 if absent/expired, or 503 if unavailable. The chart blocks direct public access and invokes it through an internal proxy subrequest. POST is deliberate: a missing Function must not be mistaken for Open WebUI's HTTP-200 SPA fallback for unknown GET paths.
+
+The chart serves the pinned `altcha@3.5.0` widget locally at
+`/auth/verify-human/altcha-3.5.0.min.js`, including its license. Widget v3 supports
+the service's v2 challenge protocol. No external CDN or CORS configuration is needed.
+
+Challenges are single-use, including failed verification attempts. **Clearance is
+reusable until expiry**, as in a browser interstitial; it is not a one-account-per-
+challenge quota. Redis loss invalidates outstanding checks and clearance. The
+clearance cookie is SameSite=Lax so links from email, Slack, other sites and OAuth
+returns keep it; cross-site POSTs to protected endpoints still omit it. Tabs verify
+independently, and a new challenge never replaces existing clearance. The chart
+rate-limits challenge and verify requests per client; the page reports 429s.
+
+The chart exempts health checks, email callbacks, OAuth, static assets, WebSockets,
+and API routes, which retain Open WebUI's normal authentication. Password signup,
+signin and LDAP auth remain protected even under the broad API exception, including
+trailing-slash forms. Unverified API submissions get 403 JSON asking the user to
+reload; the proxy never replays their POST body. OAuth and other provisioning remain
+outside this proof-of-work gate. Documentation routes served by the separate docs
+Service also remain public. This is an anti-abuse check, not a substitute for API
+authentication, request-rate limits, or volumetric DDoS protection.
+
+Function tests cover clearance, cookie separation, parallel tabs, cross-replica
+state, replay, expiry, malformed and oversized payloads, service failure, origin checks, Valve validation, route reload,
+and the missing-Function SPA fallback. Chart proxy tests cover routing and exceptions
+with the real pinned NGINX image and an isolated fake backend.
 
 ## Tests
 
